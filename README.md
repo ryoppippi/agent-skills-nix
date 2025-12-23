@@ -6,7 +6,7 @@ Declarative management of Agent Skills (directories containing `SKILL.md`) with 
 
 - **sources**: Named inputs (flake or path) pointing at a skills root (`subdir`).
 - **discover**: Scans sources for directories that contain `SKILL.md`, producing a catalog.
-- **skills.enable / skills.explicit**: Declaratively pick discovered skills and explicitly specified ones; no accidental auto-install.
+- **skills.enable / skills.enableAll / skills.explicit**: Declaratively pick discovered skills, enable-all (global or by source list), and explicitly specified ones; no accidental auto-install unless you opt in.
 - **targets**: Agent-specific destinations synced from a store bundle (structure: `link`, `symlink-tree`, `copy-tree`).
 
 ## Quick start (child flake + Home Manager)
@@ -41,6 +41,8 @@ Put skills config in a small child flake so the only pinned inputs there are ski
       subdir = "skills";
     };
     skills.enable = [ "frontend-design" "skill-creator" ];
+    # or: skills.enableAll = true;
+    # or: skills.enableAll = [ "anthropic" ];
   };
 }
 ```

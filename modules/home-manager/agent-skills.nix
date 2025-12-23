@@ -159,6 +159,12 @@ in
             example = [ "format-pr" "nix-review" ];
           };
 
+          enableAll = lib.mkOption {
+            type = lib.types.either lib.types.bool (lib.types.listOf lib.types.str);
+            default = false;
+            description = "Enable all discovered skills; set true for all sources or a list of source names.";
+          };
+
           explicit = lib.mkOption {
             type = lib.types.attrsOf skillType;
             default = {};
@@ -168,6 +174,7 @@ in
       });
       default = {
         enable = [];
+        enableAll = false;
         explicit = {};
       };
       description = "Skill selection (allowlist + explicit).";
@@ -196,9 +203,30 @@ in
 
   config = lib.mkIf cfg.enable (let
     catalog = agentLib.discoverCatalog cfg.sources;
+    enableAllValue = cfg.skills.enableAll;
+    enableAllSources =
+      if builtins.isList enableAllValue then enableAllValue else [];
+    enableAllAllSources =
+      if builtins.isBool enableAllValue then enableAllValue else false;
+    _ =
+      let
+        unknown = builtins.filter (name: !(builtins.hasAttr name cfg.sources)) enableAllSources;
+      in
+      if unknown != [] then
+        throw "agent-skills: skills.enableAll refers to unknown sources: ${lib.concatStringsSep ", " unknown}"
+      else null;
+    sourceAllowlist =
+      lib.concatMap (sourceName:
+        builtins.attrNames (lib.filterAttrs (_: skill: skill.source == sourceName) catalog)
+      ) enableAllSources;
+    allowlist = lib.unique (
+      (if enableAllAllSources then builtins.attrNames catalog else [])
+      ++ sourceAllowlist
+      ++ cfg.skills.enable
+    );
     selection = agentLib.selectSkills {
       inherit catalog;
-      allowlist = cfg.skills.enable;
+      allowlist = allowlist;
       skills = cfg.skills.explicit;
       sources = cfg.sources;
     };

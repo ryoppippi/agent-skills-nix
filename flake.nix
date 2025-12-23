@@ -31,6 +31,7 @@
         sources = {};
         skills = {
           enable = [];
+          enableAll = false;
           explicit = {};
         };
         targets = defaultTargets;
