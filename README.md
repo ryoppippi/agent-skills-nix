@@ -13,7 +13,7 @@ Declarative management of Agent Skills (directories containing `SKILL.md`) with 
 
 Put skills config in a small child flake so the only pinned inputs there are skill sources.
 
-`skills/flake.nix` (child):
+`skills/flake.nix` (child, same directory as `home-manager.nix`):
 ```nix
 {
   description = "skills catalog";
@@ -24,16 +24,23 @@ Put skills config in a small child flake so the only pinned inputs there are ski
 
   outputs = { self, anthropic-skills, ... }:
     {
-      homeManagerModules.default = { ... }: {
-        programs.agent-skills = {
-          sources.anthropic = {
-            path = anthropic-skills.outPath;
-            subdir = "skills";
-          };
-          skills.enable = [ "frontend-design" "skill-creator" ];
-        };
-      };
+      homeManagerModules.default =
+        import ./home-manager.nix { inherit anthropic-skills; };
     };
+}
+```
+
+`skills/home-manager.nix` (child):
+```nix
+{ anthropic-skills, ... }:
+{
+  programs.agent-skills = {
+    sources.anthropic = {
+      path = anthropic-skills.outPath;
+      subdir = "skills";
+    };
+    skills.enable = [ "frontend-design" "skill-creator" ];
+  };
 }
 ```
 
@@ -62,7 +69,7 @@ Notes:
 - If you use a child flake, import both modules: `inputs.agent-skills.homeManagerModules.default` and `inputs.skills-config.homeManagerModules.default`.
 - Pass your flake `inputs` to Home Manager (e.g. `home-manager.extraSpecialArgs = { inherit inputs; };`) so source `input` names resolve.
 - `method = "link"` uses `home.file` symlinks; `rsync`/`copy` run in `home.activation`.
-- Examples live at `examples/skills-config/flake.nix` and `examples/home-manager.nix`.
+- Examples live at `examples/child-flake/flake.nix`, `examples/child-flake/home-manager.nix`, `examples/direct/flake.nix`, and `examples/direct/home-manager.nix`.
 
 ## Flake outputs
 
