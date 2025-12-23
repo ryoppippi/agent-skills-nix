@@ -22,8 +22,8 @@
       agentLib = import ./lib/agent-skills.nix { inherit lib inputs; };
 
       defaultTargets = {
-        codex = { dest = ".codex/skills"; method = "rsync"; enable = true; systems = []; };
-        claude = { dest = ".claude/skills"; method = "rsync"; enable = true; systems = []; };
+        codex = { dest = ".codex/skills"; structure = "symlink-tree"; enable = true; systems = []; };
+        claude = { dest = ".claude/skills"; structure = "symlink-tree"; enable = true; systems = []; };
       };
 
       defaultConfig = {

@@ -10,8 +10,8 @@
     };
     skills.enable = [ "frontend-design" "skill-creator" ];
     targets = {
-      codex  = { dest = ".codex/skills";  method = "rsync"; };
-      claude = { dest = ".claude/skills"; method = "rsync"; };
+      codex  = { dest = ".codex/skills";  structure = "symlink-tree"; };
+      claude = { dest = ".claude/skills"; structure = "symlink-tree"; };
     };
   };
 }

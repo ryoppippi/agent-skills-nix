@@ -25,10 +25,10 @@ let
         description = "Destination relative to $HOME (e.g. .codex/skills).";
       };
 
-      method = lib.mkOption {
-        type = lib.types.enum [ "rsync" "copy" "link" ];
-        default = "rsync";
-        description = "Synchronisation method.";
+      structure = lib.mkOption {
+        type = lib.types.enum [ "link" "symlink-tree" "copy-tree" ];
+        default = "symlink-tree";
+        description = "How the target is laid out (link, symlink-tree, or copy-tree).";
       };
 
       systems = lib.mkOption {
@@ -111,8 +111,8 @@ let
   activeTargets =
     lib.filterAttrs (_: t: t.enable && (t.systems == [] || lib.elem pkgs.system t.systems)) cfg.targets;
 
-  linkTargets = lib.filterAttrs (_: t: t.method == "link") activeTargets;
-  syncTargets = lib.filterAttrs (_: t: t.method != "link") activeTargets;
+  linkTargets = lib.filterAttrs (_: t: t.structure == "link") activeTargets;
+  syncTargets = lib.filterAttrs (_: t: t.structure != "link") activeTargets;
 
   assertDest = dest:
     if lib.strings.hasPrefix "/" dest then
@@ -128,8 +128,8 @@ let
   '' + lib.concatStringsSep "\n" (lib.mapAttrsToList (_: t:
     let
       dest = "$HOME/${assertDest t.dest}";
-      syncCmd = if t.method == "copy" then
-        ''${pkgs.coreutils}/bin/cp -R "${bundle}/." "${dest}/"''
+      syncCmd = if t.structure == "copy-tree" then
+        ''${pkgs.rsync}/bin/rsync -aL --delete "${bundle}/" "${dest}/"''
       else
         ''${pkgs.rsync}/bin/rsync -a --delete "${bundle}/" "${dest}/"'';
     in ''

@@ -3,7 +3,7 @@
 {
   programs.agent-skills = {
     sources.anthropic = {
-      path = anthropic-skills.outPath;
+      path = anthropic-skills;
       subdir = "skills";
     };
     skills.enable = [ "frontend-design" "skill-creator" ];

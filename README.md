@@ -7,7 +7,7 @@ Declarative management of Agent Skills (directories containing `SKILL.md`) with 
 - **sources**: Named inputs (flake or path) pointing at a skills root (`subdir`).
 - **discover**: Scans sources for directories that contain `SKILL.md`, producing a catalog.
 - **skills.enable / skills.explicit**: Declaratively pick discovered skills and explicitly specified ones; no accidental auto-install.
-- **targets**: Agent-specific destinations synced from a store bundle (`rsync`/`copy`/`link`).
+- **targets**: Agent-specific destinations synced from a store bundle (structure: `link`, `symlink-tree`, `copy-tree`).
 
 ## Quick start (child flake + Home Manager)
 
@@ -20,6 +20,7 @@ Put skills config in a small child flake so the only pinned inputs there are ski
 
   inputs = {
     anthropic-skills.url = "github:anthropics/skills";
+    anthropic-skills.flake = false;
   };
 
   outputs = { self, anthropic-skills, ... }:
@@ -36,7 +37,7 @@ Put skills config in a small child flake so the only pinned inputs there are ski
 {
   programs.agent-skills = {
     sources.anthropic = {
-      path = anthropic-skills.outPath;
+      path = anthropic-skills;
       subdir = "skills";
     };
     skills.enable = [ "frontend-design" "skill-creator" ];
@@ -57,8 +58,8 @@ Then load it from your main Home Manager config:
   programs.agent-skills = {
     enable = true;
     targets = {
-      codex  = { dest = ".codex/skills";  method = "rsync"; };
-      claude = { dest = ".claude/skills"; method = "rsync"; };
+      codex  = { dest = ".codex/skills";  structure = "symlink-tree"; };
+      claude = { dest = ".claude/skills"; structure = "symlink-tree"; };
     };
   };
 }
@@ -68,7 +69,8 @@ Notes:
 
 - If you use a child flake, import both modules: `inputs.agent-skills.homeManagerModules.default` and `inputs.skills-config.homeManagerModules.default`.
 - Pass your flake `inputs` to Home Manager (e.g. `home-manager.extraSpecialArgs = { inherit inputs; };`) so source `input` names resolve.
-- `method = "link"` uses `home.file` symlinks; `rsync`/`copy` run in `home.activation`.
+- `structure = "link"` uses `home.file` symlinks; `symlink-tree` and `copy-tree` run in `home.activation`.
+- `symlink-tree` uses `rsync -a --delete` (preserve symlinks); `copy-tree` uses `rsync -aL --delete` (dereference symlinks).
 - Examples live at `examples/child-flake/flake.nix`, `examples/child-flake/home-manager.nix`, `examples/direct/flake.nix`, and `examples/direct/home-manager.nix`.
 
 ## Flake outputs

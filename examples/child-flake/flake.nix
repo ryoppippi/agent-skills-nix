@@ -3,6 +3,7 @@
 
   inputs = {
     anthropic-skills.url = "github:anthropics/skills";
+    anthropic-skills.flake = false;
   };
 
   outputs = { self, anthropic-skills, ... }:

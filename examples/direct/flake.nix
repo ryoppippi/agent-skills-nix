@@ -7,6 +7,7 @@
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     agent-skills.url = "path:../..";
     anthropic-skills.url = "github:anthropics/skills";
+    anthropic-skills.flake = false;
   };
 
   outputs = inputs@{ self, nixpkgs, home-manager, ... }:
