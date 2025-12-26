@@ -73,7 +73,6 @@ Notes:
 - Pass your flake `inputs` to Home Manager (e.g. `home-manager.extraSpecialArgs = { inherit inputs; };`) so source `input` names resolve.
 - `structure = "link"` uses `home.file` symlinks; `symlink-tree` and `copy-tree` run in `home.activation`.
 - `symlink-tree` uses `rsync -a --delete` (preserve symlinks); `copy-tree` uses `rsync -aL --delete` (dereference symlinks).
-- Examples live at `examples/child-flake/flake.nix`, `examples/child-flake/home-manager.nix`, `examples/direct/flake.nix`, and `examples/direct/home-manager.nix`.
 
 ## Flake outputs
 
