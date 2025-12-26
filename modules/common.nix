@@ -157,13 +157,11 @@ in
 
     catalog = lib.mkOption {
       type = lib.types.attrs;
-      #readOnly = true;
       description = "Discovered skills catalog.";
     };
 
     bundlePath = lib.mkOption {
       type = lib.types.nullOr lib.types.path;
-      #readOnly = true;
       description = "Store path for the built bundle.";
     };
   };
