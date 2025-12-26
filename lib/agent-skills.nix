@@ -4,7 +4,11 @@ let
   inherit (builtins)
     attrNames
     elem
+    filter
     foldl'
+    hasAttr
+    isBool
+    isList
     match
     pathExists
     readDir
@@ -15,6 +19,7 @@ let
     concatMapStringsSep
     filterAttrs
     mapAttrs
+    unique
     ;
 
   inherit (lib.strings)
@@ -97,6 +102,31 @@ let
           local;
     in lib.attrsets.foldlAttrs addSource {} sources;
 
+  # Build allowlist from enableAll + explicit enable list.
+  allowlistFor = { catalog, sources, enableAll ? false, enable ? [] }:
+    let
+      enableAllSources =
+        if isList enableAll then enableAll else [];
+      enableAllAllSources =
+        if isBool enableAll then enableAll else false;
+      _ =
+        let
+          unknown = filter (name: !(hasAttr name sources)) enableAllSources;
+        in
+        if unknown != [] then
+          throw "agent-skills: skills.enableAll refers to unknown sources: ${lib.concatStringsSep ", " unknown}"
+        else null;
+      sourceAllowlist =
+        concatMap (sourceName:
+          attrNames (filterAttrs (_: skill: skill.source == sourceName) catalog)
+        ) enableAllSources;
+    in
+    unique (
+      (if enableAllAllSources then attrNames catalog else [])
+      ++ sourceAllowlist
+      ++ enable
+    );
+
   # Build selection from allowlist + explicit skills.
   selectSkills = { catalog, allowlist ? [], skills ? {}, sources }:
     let
@@ -143,6 +173,13 @@ let
       allowlisted
       fromExplicit;
 
+  # Filter targets by enabled flag and system selector.
+  targetsFor = { targets, system }:
+    filterAttrs (_: t:
+      let systems = t.systems or [];
+      in (t.enable or true) && (systems == [] || elem system systems)
+    ) targets;
+
   # Materialize bundle in the store, preserving nested paths.
   mkBundle = { pkgs, selection, name ? "agent-skills-bundle" }:
     let
@@ -171,6 +208,8 @@ in
 {
   discoverCatalog = discoverCatalog;
   selectSkills = selectSkills;
+  allowlistFor = allowlistFor;
+  targetsFor = targetsFor;
   mkBundle = mkBundle;
   catalogJson = catalogJson;
 }
