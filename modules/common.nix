@@ -158,14 +158,12 @@ in
     catalog = lib.mkOption {
       type = lib.types.attrs;
       readOnly = true;
-      default = {};
       description = "Discovered skills catalog.";
     };
 
     bundlePath = lib.mkOption {
       type = lib.types.nullOr lib.types.path;
       readOnly = true;
-      default = null;
       description = "Store path for the built bundle.";
     };
   };
