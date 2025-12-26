@@ -38,15 +38,21 @@
       };
 
       defaultCatalog = agentLib.discoverCatalog defaultConfig.sources;
+      defaultAllowlist = agentLib.allowlistFor {
+        catalog = defaultCatalog;
+        sources = defaultConfig.sources;
+        enableAll = defaultConfig.skills.enableAll;
+        enable = defaultConfig.skills.enable;
+      };
       defaultSelection = agentLib.selectSkills {
         catalog = defaultCatalog;
-        allowlist = defaultConfig.skills.enable;
+        allowlist = defaultAllowlist;
         skills = defaultConfig.skills.explicit;
         sources = defaultConfig.sources;
       };
 
       targetsFor = system:
-        lib.filterAttrs (_: t: t.enable && (t.systems == [] || builtins.elem system t.systems)) defaultTargets;
+        agentLib.targetsFor { targets = defaultTargets; inherit system; };
 
       defaultDests = system:
         builtins.concatStringsSep " "
