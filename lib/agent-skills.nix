@@ -45,7 +45,7 @@ let
   # Recursively search for SKILL.md directories up to `maxDepth`.
   discoverSource = name: cfg:
     let
-      skillsRoot' = resolveSourceRoot name cfg + "/${cfg.subdir or "/."}";
+      skillsRoot' = resolveSourceRoot name cfg + "/${cfg.subdir or "."}";
       skillsRoot = if !pathExists skillsRoot' then
         throw "agent-skills: source ${name} subdir ${toString skillsRoot'} does not exist"
       else skillsRoot';
