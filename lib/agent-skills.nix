@@ -45,10 +45,10 @@ let
   # Recursively search for SKILL.md directories up to `maxDepth`.
   discoverSource = name: cfg:
     let
-      skillsRoot = resolveSourceRoot name cfg + "/" + (cfg.subdir or ".");
-      _ = if !pathExists skillsRoot then
-        throw "agent-skills: source ${name} subdir ${skillsRoot} does not exist"
-      else null;
+      skillsRoot' = resolveSourceRoot name cfg + "/${cfg.subdir or "."}";
+      skillsRoot = if !pathExists skillsRoot' then
+        throw "agent-skills: source ${name} subdir ${toString skillsRoot'} does not exist"
+      else skillsRoot';
 
       maxDepth = cfg.filter.maxDepth or 1;
       nameRegex = cfg.filter.nameRegex or null;
@@ -76,7 +76,7 @@ let
 
           deeper =
             if depth < maxDepth then
-              concatMap (n: scan (path + "/" + n) (relParts ++ [ n ]) (depth + 1)) dirs
+              concatMap (n: scan (path + "/${n}") (relParts ++ [ n ]) (depth + 1)) dirs
             else [];
         in current ++ deeper;
 

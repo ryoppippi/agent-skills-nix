@@ -7,7 +7,7 @@ let
       inputs = inputs // inputsFromArgs;
     };
 in
-{ config, pkgs, ... }@args:
+{ config, pkgs, lib, ... }@args:
 let
   cfg = config.programs.agent-skills;
   agentLib = agentLibFor (args.inputs or {});
