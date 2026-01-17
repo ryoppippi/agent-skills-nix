@@ -21,9 +21,17 @@
       forAllSystems = lib.genAttrs systems;
       agentLib = import ./lib/agent-skills.nix { inherit lib inputs; };
 
+      # Global targets: installed to $HOME
       defaultTargets = {
         codex = { dest = ".codex/skills"; structure = "symlink-tree"; enable = true; systems = []; };
         claude = { dest = ".claude/skills"; structure = "symlink-tree"; enable = true; systems = []; };
+      };
+
+      # Local targets: installed to project root (current working directory)
+      # TODO: Update to use CODEX_HOME/CLAUDE_CONFIG_DIR when #3 is merged
+      defaultLocalTargets = {
+        codex = { dest = ".codex/skills"; structure = "copy-tree"; enable = true; systems = []; };
+        claude = { dest = ".claude/skills"; structure = "copy-tree"; enable = true; systems = []; };
       };
 
       defaultConfig = {
@@ -54,9 +62,16 @@
       targetsFor = system:
         agentLib.targetsFor { targets = defaultTargets; inherit system; };
 
+      localTargetsFor = system:
+        agentLib.targetsFor { targets = defaultLocalTargets; inherit system; };
+
       defaultDests = system:
         builtins.concatStringsSep " "
           (map (t: "$HOME/${t.dest}") (builtins.attrValues (targetsFor system)));
+
+      defaultLocalDests = system:
+        builtins.concatStringsSep " "
+          (map (t: t.dest) (builtins.attrValues (localTargetsFor system)));
 
       bundleFor = system:
         let pkgs = nixpkgs.legacyPackages.${system}; in
@@ -105,10 +120,39 @@
               cat ${listJson} | ${pkgs.jq}/bin/jq .
             '';
           };
+
+          localDests = defaultLocalDests system;
+          installLocalScript = pkgs.writeShellApplication {
+            name = "skills-install-local";
+            runtimeInputs = [ pkgs.rsync pkgs.coreutils ];
+            text = ''
+              root="''${AGENT_SKILLS_ROOT:-$PWD}"
+              dests="${localDests}"
+              if [ -n "''${AGENT_SKILLS_LOCAL_DESTS:-}" ]; then
+                dests="$AGENT_SKILLS_LOCAL_DESTS"
+              fi
+              bundle=${bundle}
+              if [ ! -d "$bundle" ]; then
+                echo "agent-skills: bundle not built" >&2
+                exit 1
+              fi
+              for dest in $dests; do
+                if [ -z "$dest" ]; then continue; fi
+                full_dest="$root/$dest"
+                mkdir -p "$full_dest"
+                ${pkgs.rsync}/bin/rsync -aL --delete "$bundle/" "$full_dest/"
+                echo "agent-skills: installed to $full_dest"
+              done
+            '';
+          };
         in {
           skills-install = {
             type = "app";
             program = "${installScript}/bin/skills-install";
+          };
+          skills-install-local = {
+            type = "app";
+            program = "${installLocalScript}/bin/skills-install-local";
           };
           skills-list = {
             type = "app";

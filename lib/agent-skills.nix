@@ -204,6 +204,52 @@ let
       meta = skill.meta or {};
     }) catalog;
 
+  # Default local targets for project-local skill installation.
+  # TODO: Update to use CODEX_HOME/CLAUDE_CONFIG_DIR when #3 is merged
+  defaultLocalTargets = {
+    codex = { dest = ".codex/skills"; };
+    claude = { dest = ".claude/skills"; };
+  };
+
+  # Create a local install script for use in consumer flakes.
+  # This allows projects to install skills to their local directory.
+  mkLocalInstallScript = { pkgs, bundle, targets ? defaultLocalTargets }:
+    let
+      dests = builtins.concatStringsSep " " (map (t: t.dest) (builtins.attrValues targets));
+    in
+    pkgs.writeShellApplication {
+      name = "skills-install-local";
+      runtimeInputs = [ pkgs.rsync pkgs.coreutils ];
+      text = ''
+        root="''${AGENT_SKILLS_ROOT:-$PWD}"
+        dests="${dests}"
+        if [ -n "''${AGENT_SKILLS_LOCAL_DESTS:-}" ]; then
+          dests="$AGENT_SKILLS_LOCAL_DESTS"
+        fi
+        bundle=${bundle}
+        if [ ! -d "$bundle" ]; then
+          echo "agent-skills: bundle not built" >&2
+          exit 1
+        fi
+        for dest in $dests; do
+          if [ -z "$dest" ]; then continue; fi
+          full_dest="$root/$dest"
+          mkdir -p "$full_dest"
+          ${pkgs.rsync}/bin/rsync -aL --delete "$bundle/" "$full_dest/"
+          echo "agent-skills: installed to $full_dest"
+        done
+      '';
+    };
+
+  # Create a shellHook string for use in devShells.
+  # Automatically installs skills when entering the dev shell.
+  mkShellHook = { pkgs, bundle, targets ? defaultLocalTargets }:
+    let
+      installScript = mkLocalInstallScript { inherit pkgs bundle targets; };
+    in ''
+      ${installScript}/bin/skills-install-local
+    '';
+
 in
 {
   discoverCatalog = discoverCatalog;
@@ -212,4 +258,7 @@ in
   targetsFor = targetsFor;
   mkBundle = mkBundle;
   catalogJson = catalogJson;
+  mkLocalInstallScript = mkLocalInstallScript;
+  mkShellHook = mkShellHook;
+  defaultLocalTargets = defaultLocalTargets;
 }
