@@ -148,7 +148,11 @@ let
           srcRoot = resolveSourceRoot srcName sourceCfg;
           subdir = sourceCfg.subdir or ".";
           rel = cfg.path or name;
-          absPath = srcRoot + "/" + subdir + "/" + rel;
+          absPath =
+            if subdir == "." && rel == "." then srcRoot
+            else if subdir == "." then srcRoot + "/${rel}"
+            else if rel == "." then srcRoot + "/${subdir}"
+            else srcRoot + "/${subdir}/${rel}";
           _ = if !pathExists absPath then
             throw "agent-skills: skill ${name} path ${absPath} does not exist"
           else if !pathExists (absPath + "/SKILL.md") then
@@ -160,6 +164,9 @@ let
           relPath = rel;
           source = srcName;
           meta = cfg.meta or {};
+          prepend = cfg.prepend or null;
+          append = cfg.append or null;
+          packages = cfg.packages or [];
         }
       ) explicit;
 
@@ -180,15 +187,72 @@ let
       in (t.enable or true) && (systems == [] || elem system systems)
     ) targets;
 
+  # Generate markdown table for packages
+  mkPackagesTable = packages:
+    if packages == [] then ""
+    else
+      let
+        header = ''
+## Dependencies
+
+| Package | Path |
+|---------|------|
+'';
+        rows = concatMapStringsSep "\n" (pkg:
+          let
+            name = pkg.pname or pkg.name or "unknown";
+            bin = "${pkg}/bin/${name}";
+            path = if pathExists bin then bin else "${pkg}";
+          in "| ${name} | `${path}` |"
+        ) packages;
+      in header + rows + "\n\n";
+
   # Materialize bundle in the store, preserving nested paths.
   mkBundle = { pkgs, selection, name ? "agent-skills-bundle" }:
     let
       skills = map (id: selection.${id} // { inherit id; }) (attrNames selection);
-      buildCommands = concatMapStringsSep "\n" (skill: ''
-        dest=${skill.id}
-        mkdir -p "$out/$(dirname "$dest")"
-        ln -s ${skill.absPath} "$out/$dest"
-      '') skills;
+      buildCommands = concatMapStringsSep "\n" (skill:
+        let
+          hasPrepend = skill.prepend or null != null;
+          hasAppend = skill.append or null != null;
+          hasPackages = (skill.packages or []) != [];
+          packagesTable = mkPackagesTable (skill.packages or []);
+          needsMerge = hasPrepend || hasAppend || hasPackages;
+        in
+        if needsMerge then ''
+          dest=${skill.id}
+          mkdir -p "$out/$dest"
+          # Link all files except SKILL.md
+          for f in ${skill.absPath}/*; do
+            fname="$(basename "$f")"
+            if [ "$fname" != "SKILL.md" ]; then
+              ln -s "$f" "$out/$dest/$fname"
+            fi
+          done
+          # Create merged SKILL.md
+          ${if hasPackages then ''
+          cat > "$out/$dest/SKILL.md" <<'PACKAGES_EOF'
+${packagesTable}
+PACKAGES_EOF
+          '' else ''
+          touch "$out/$dest/SKILL.md"
+          ''}
+          ${if hasPrepend then ''
+          cat >> "$out/$dest/SKILL.md" <<'PREPEND_EOF'
+${skill.prepend}
+PREPEND_EOF
+          '' else ""}
+          cat ${skill.absPath}/SKILL.md >> "$out/$dest/SKILL.md"
+          ${if hasAppend then ''
+          cat >> "$out/$dest/SKILL.md" <<'APPEND_EOF'
+${skill.append}
+APPEND_EOF
+          '' else ""}
+        '' else ''
+          dest=${skill.id}
+          mkdir -p "$out/$(dirname "$dest")"
+          ln -s ${skill.absPath} "$out/$dest"
+        '') skills;
     in
     pkgs.runCommand name { preferLocalBuild = true; } ''
       mkdir -p "$out"

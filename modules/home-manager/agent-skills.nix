@@ -47,6 +47,8 @@ in
   config = lib.mkIf cfg.enable (let
     bundle = cfg.bundlePath;
   in {
+    home.packages = cfg.selectedPackages;
+
     home.activation.agent-skills =
       lib.mkIf (syncTargets != {}) (lib.hm.dag.entryAfter [ "writeBoundary" ] (syncScript bundle));
 

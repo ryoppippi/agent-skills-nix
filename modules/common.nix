@@ -105,6 +105,24 @@ let
         default = {};
         description = "Optional metadata override.";
       };
+
+      prepend = lib.mkOption {
+        type = lib.types.nullOr lib.types.lines;
+        default = null;
+        description = "Text to prepend to SKILL.md.";
+      };
+
+      append = lib.mkOption {
+        type = lib.types.nullOr lib.types.lines;
+        default = null;
+        description = "Text to append to SKILL.md.";
+      };
+
+      packages = lib.mkOption {
+        type = lib.types.listOf lib.types.package;
+        default = [];
+        description = "Packages to install for this skill.";
+      };
     };
   });
 in
@@ -164,6 +182,12 @@ in
       type = lib.types.nullOr lib.types.path;
       description = "Store path for the built bundle.";
     };
+
+    selectedPackages = lib.mkOption {
+      type = lib.types.listOf lib.types.package;
+      default = [];
+      description = "Packages collected from all enabled skills.";
+    };
   };
 
   config = lib.mkIf cfg.enable (let
@@ -180,8 +204,12 @@ in
       sources = cfg.sources;
     };
     bundle = agentLib.mkBundle { inherit pkgs selection; };
+    collectedPackages = lib.unique (lib.concatLists (
+      lib.mapAttrsToList (_: skill: skill.packages or []) selection
+    ));
   in {
     programs.agent-skills.catalog = catalog;
     programs.agent-skills.bundlePath = bundle;
+    programs.agent-skills.selectedPackages = collectedPackages;
   });
 }

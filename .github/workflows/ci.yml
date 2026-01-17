@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  check:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: DeterminateSystems/nix-installer-action@main
+
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Run flake check
+        run: nix flake check --print-build-logs
+
+      - name: Build test bundle and show generated SKILL.md
+        run: |
+          nix build --impure --print-build-logs --expr '
+          let
+            nixpkgs = builtins.getFlake "nixpkgs";
+            system = builtins.currentSystem;
+            pkgs = nixpkgs.legacyPackages.''${system};
+            agentLib = import ./lib/agent-skills.nix { lib = pkgs.lib; inputs = {}; };
+
+            testSources = {
+              test-fixtures = {
+                path = ./test/fixtures/test-skill;
+              };
+            };
+
+            prependContent = builtins.readFile ./test/fixtures/prepend.md;
+            appendContent = builtins.readFile ./test/fixtures/append.md;
+
+            testCatalog = agentLib.discoverCatalog testSources;
+
+            testSelection = agentLib.selectSkills {
+              catalog = testCatalog;
+              allowlist = [];
+              sources = testSources;
+              skills = {
+                test-skill = {
+                  from = "test-fixtures";
+                  path = ".";
+                  prepend = prependContent;
+                  append = appendContent;
+                  packages = [ pkgs.jq pkgs.curl ];
+                };
+              };
+            };
+
+            testBundle = agentLib.mkBundle {
+              inherit pkgs;
+              selection = testSelection;
+              name = "test-bundle";
+            };
+          in testBundle
+          '
+
+          echo "## Generated SKILL.md"
+          echo '```markdown'
+          cat result/test-skill/SKILL.md
+          echo '```'
+
+      - name: Show generated SKILL.md in summary
+        run: |
+          echo "## Generated SKILL.md" >> $GITHUB_STEP_SUMMARY
+          echo '```markdown' >> $GITHUB_STEP_SUMMARY
+          cat result/test-skill/SKILL.md >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

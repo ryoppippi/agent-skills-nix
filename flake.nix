@@ -126,6 +126,10 @@
             mkdir -p "$out"
             touch "$out/ok"
           '';
+
+          prepend-append-packages = import ./test/prepend-append-packages.nix {
+            inherit pkgs agentLib;
+          };
         });
 
       homeManagerModules.default =
