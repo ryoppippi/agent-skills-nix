@@ -213,6 +213,7 @@ let
 
   # Create a local install script for use in consumer flakes.
   # This allows projects to install skills to their local directory.
+  # Safety: Only overwrites if destination is a symlink to Nix store or doesn't exist.
   mkLocalInstallScript = { pkgs, bundle, targets ? defaultLocalTargets }:
     let
       dests = builtins.concatStringsSep " " (map (t: t.dest) (builtins.attrValues targets));
@@ -231,11 +232,40 @@ let
           echo "agent-skills: bundle not built" >&2
           exit 1
         fi
+
+        # Check if path is safe to overwrite (doesn't exist, or is a symlink to Nix store)
+        is_safe_to_overwrite() {
+          local path="$1"
+          if [ ! -e "$path" ]; then
+            return 0  # Doesn't exist, safe
+          fi
+          if [ -L "$path" ]; then
+            local target
+            target="$(readlink -f "$path")"
+            if [[ "$target" == /nix/store/* ]]; then
+              return 0  # Symlink to Nix store, safe
+            fi
+          fi
+          return 1  # Not safe
+        }
+
         for dest in $dests; do
           if [ -z "$dest" ]; then continue; fi
           full_dest="$root/$dest"
-          mkdir -p "$full_dest"
-          ${pkgs.rsync}/bin/rsync -aL --delete "$bundle/" "$full_dest/"
+
+          if ! is_safe_to_overwrite "$full_dest"; then
+            echo "agent-skills: $full_dest exists and is not a Nix-managed path" >&2
+            echo "agent-skills: skipping to avoid overwriting user data" >&2
+            echo "agent-skills: remove manually or set AGENT_SKILLS_FORCE=1 to overwrite" >&2
+            if [ "''${AGENT_SKILLS_FORCE:-}" != "1" ]; then
+              continue
+            fi
+            echo "agent-skills: AGENT_SKILLS_FORCE=1 set, overwriting anyway" >&2
+          fi
+
+          mkdir -p "$(dirname "$full_dest")"
+          rm -rf "$full_dest"
+          ln -s "$bundle" "$full_dest"
           echo "agent-skills: installed to $full_dest"
         done
       '';
