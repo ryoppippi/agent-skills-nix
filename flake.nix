@@ -64,10 +64,15 @@
     in
     {
       packages = forAllSystems (system: let
+        pkgs = nixpkgs.legacyPackages.${system};
         bundle = bundleFor system;
+
+        # Test bundle for CI
+        testBundle = import ./test/build-test-bundle.nix { inherit pkgs agentLib; };
       in {
         agent-skills-bundle = bundle;
         default = bundle;
+        test-bundle = testBundle;
       });
 
       apps = forAllSystems (system:
