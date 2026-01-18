@@ -17,11 +17,6 @@ let
   linkTargets = lib.filterAttrs (_: t: t.structure == "link") activeTargets;
   syncTargets = lib.filterAttrs (_: t: t.structure != "link") activeTargets;
 
-  assertDest = dest:
-    if lib.strings.hasPrefix "/" dest then
-      throw "agent-skills: target destination must be home-relative, got ${dest}"
-    else dest;
-
   syncScript = bundle: ''
     bundle=${bundle}
     if [ ! -d "$bundle" ]; then
@@ -30,7 +25,7 @@ let
     fi
   '' + lib.concatStringsSep "\n" (lib.mapAttrsToList (_: t:
     let
-      dest = "$HOME/${assertDest t.dest}";
+      dest = t.dest;
       syncCmd = if t.structure == "copy-tree" then
         ''${pkgs.rsync}/bin/rsync -aL --delete "${bundle}/" "${dest}/"''
       else
@@ -50,12 +45,38 @@ in
     home.activation.agent-skills =
       lib.mkIf (syncTargets != {}) (lib.hm.dag.entryAfter [ "writeBoundary" ] (syncScript bundle));
 
-    home.file = lib.mkMerge (lib.mapAttrsToList (_: t: {
-      ${assertDest t.dest} = {
-        source = bundle;
-        recursive = true;
-        force = true;
-      };
-    }) linkTargets);
+    # Note: 'link' structure type uses home.file which requires a static path relative to $HOME.
+    # Shell variable expansion in dest is not supported for 'link' type.
+    # Use 'symlink-tree' or 'copy-tree' structure for dynamic paths with environment variables.
+    home.file = lib.mkMerge (lib.mapAttrsToList (_: t:
+      let
+        # For link type, we need a static path relative to $HOME.
+        # If dest contains shell variables, warn and extract the fallback path.
+        staticDest =
+          let
+            dest = t.dest;
+          in
+            if lib.strings.hasPrefix "\${" dest || lib.strings.hasPrefix "$" dest then
+              # dest contains shell variables, try to extract fallback path
+              # e.g., "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills" -> ".claude/skills"
+              let
+                # Extract the fallback part after :- and before }
+                fallbackMatch = builtins.match ".*:-\\$HOME/([^}]+)\\}(.*)" dest;
+              in
+                if fallbackMatch != null then
+                  builtins.trace "agent-skills: 'link' structure does not support shell variables, using fallback path"
+                  (builtins.elemAt fallbackMatch 0) + (builtins.elemAt fallbackMatch 1)
+                else
+                  throw "agent-skills: 'link' structure requires a static path, got '${dest}'. Use 'symlink-tree' or 'copy-tree' for dynamic paths."
+            else
+              dest;
+      in {
+        ${staticDest} = {
+          source = bundle;
+          recursive = true;
+          force = true;
+        };
+      }
+    ) linkTargets);
   });
 }

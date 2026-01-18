@@ -7,7 +7,7 @@ Declarative management of Agent Skills (directories containing `SKILL.md`) with 
 - **sources**: Named inputs (flake or path) pointing at a skills root (`subdir`).
 - **discover**: Scans sources for directories that contain `SKILL.md`, producing a catalog.
 - **skills.enable / skills.enableAll / skills.explicit**: Declaratively pick discovered skills, enable-all (global or by source list), and explicitly specified ones; no accidental auto-install unless you opt in.
-- **targets**: Agent-specific destinations synced from a store bundle (structure: `link`, `symlink-tree`, `copy-tree`).
+- **targets**: Agent-specific destinations synced from a store bundle (structure: `link`, `symlink-tree`, `copy-tree`). The `dest` option supports shell variable expansion at runtime (e.g. `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills`).
 
 ## Quick start (child flake + Home Manager)
 
@@ -59,9 +59,18 @@ Then load it from your main Home Manager config:
 
   programs.agent-skills = {
     enable = true;
+    # Default targets use CODEX_HOME and CLAUDE_CONFIG_DIR environment variables
+    # with fallback to $HOME/.codex and $HOME/.claude respectively.
+    # Custom targets can be configured as follows:
     targets = {
-      codex  = { dest = ".codex/skills";  structure = "symlink-tree"; };
-      claude = { dest = ".claude/skills"; structure = "symlink-tree"; };
+      codex  = {
+        dest = "\${CODEX_HOME:-$HOME/.codex}/skills";
+        structure = "symlink-tree";
+      };
+      claude = {
+        dest = "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills";
+        structure = "symlink-tree";
+      };
     };
   };
 }
@@ -73,11 +82,12 @@ Notes:
 - Pass your flake `inputs` to Home Manager (e.g. `home-manager.extraSpecialArgs = { inherit inputs; };`) so source `input` names resolve.
 - `structure = "link"` uses `home.file` symlinks; `symlink-tree` and `copy-tree` run in `home.activation`.
 - `symlink-tree` uses `rsync -a --delete` (preserve symlinks); `copy-tree` uses `rsync -aL --delete` (dereference symlinks).
+- `dest` supports shell variable expansion at runtime (e.g. `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills`). Note: `link` structure does not support shell variables and will use the fallback path.
 
 ## Flake outputs
 
 - `packages.<system>.agent-skills-bundle`: Store bundle of selected skills (empty by default; configure in consumers).
-- `apps.<system>.skills-install`: Sync bundle to default targets (`$HOME/.codex/skills`, `$HOME/.claude/skills`). Override destinations with `AGENT_SKILLS_DESTS`.
+- `apps.<system>.skills-install`: Sync bundle to default targets (respects `CODEX_HOME` and `CLAUDE_CONFIG_DIR` environment variables, with fallback to `$HOME/.codex/skills` and `$HOME/.claude/skills`). Override destinations with `AGENT_SKILLS_DESTS`.
 - `apps.<system>.skills-list`: JSON view of the default catalog.
 - `checks.<system>.skills`: Sanity check that the bundle builds.
 - `homeManagerModules.default`: Home Manager module implementing the DSL above.
