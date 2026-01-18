@@ -205,7 +205,7 @@ let
     }) catalog;
 
   # Default local targets for project-local skill installation.
-  # TODO: Update to use CODEX_HOME/CLAUDE_CONFIG_DIR when #3 is merged
+  # Uses relative paths for project-local installation (not global env vars).
   defaultLocalTargets = {
     codex = { dest = ".codex/skills"; };
     claude = { dest = ".claude/skills"; };

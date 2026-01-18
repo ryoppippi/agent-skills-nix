@@ -38,7 +38,7 @@
       };
 
       # Local targets: installed to project root (current working directory)
-      # TODO: Update to use CODEX_HOME/CLAUDE_CONFIG_DIR when #3 is merged
+      # Uses relative paths for project-local installation (not global env vars).
       defaultLocalTargets = {
         codex = { dest = ".codex/skills"; structure = "copy-tree"; enable = true; systems = []; };
         claude = { dest = ".claude/skills"; structure = "copy-tree"; enable = true; systems = []; };
