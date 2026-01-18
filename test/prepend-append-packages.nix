@@ -41,10 +41,25 @@ pkgs.runCommand "agent-skills-prepend-append-packages-test" {} ''
   # Check file exists
   test -f "$skillMd" || { echo "SKILL.md not found"; exit 1; }
 
-  # Check Dependencies table exists (from packages)
+  # Check Dependencies table exists (from packages) with local paths
   grep -q "## Dependencies" "$skillMd" || { echo "Dependencies section not found"; exit 1; }
-  grep -q "| jq |" "$skillMd" || { echo "jq package not found in table"; exit 1; }
-  grep -q "| curl |" "$skillMd" || { echo "curl package not found in table"; exit 1; }
+  grep -q "| jq | \`./jq\` |" "$skillMd" || { echo "jq package not found with local path in table"; exit 1; }
+  grep -q "| curl | \`./curl\` |" "$skillMd" || { echo "curl package not found with local path in table"; exit 1; }
+
+  # Check symlinks to package binaries exist
+  skillDir="${testBundle}/test-skill"
+  test -L "$skillDir/jq" || { echo "jq symlink not found"; exit 1; }
+  test -L "$skillDir/curl" || { echo "curl symlink not found"; exit 1; }
+
+  # Check symlinks point to Nix store and are executable
+  jq_target=$(readlink -f "$skillDir/jq")
+  curl_target=$(readlink -f "$skillDir/curl")
+  [[ "$jq_target" == /nix/store/* ]] || { echo "jq symlink does not point to Nix store"; exit 1; }
+  [[ "$curl_target" == /nix/store/* ]] || { echo "curl symlink does not point to Nix store"; exit 1; }
+
+  # Check commands are executable
+  "$skillDir/jq" --version > /dev/null || { echo "jq is not executable"; exit 1; }
+  "$skillDir/curl" --version > /dev/null || { echo "curl is not executable"; exit 1; }
 
   # Check prepend content (from fixtures/prepend.md)
   grep -q "# Prepended Content" "$skillMd" || { echo "Prepended content not found"; exit 1; }

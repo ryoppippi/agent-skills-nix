@@ -187,7 +187,15 @@ let
       in (t.enable or true) && (systems == [] || elem system systems)
     ) targets;
 
-  # Generate markdown table for packages
+  # Get binary info for a package (name and store path)
+  getPkgBinInfo = pkg:
+    let
+      name = pkg.pname or pkg.name or "unknown";
+      bin = "${pkg}/bin/${name}";
+      path = if pathExists bin then bin else "${pkg}";
+    in { inherit name path; };
+
+  # Generate markdown table for packages (using local paths)
   mkPackagesTable = packages:
     if packages == [] then ""
     else
@@ -199,11 +207,8 @@ let
 |---------|------|
 '';
         rows = concatMapStringsSep "\n" (pkg:
-          let
-            name = pkg.pname or pkg.name or "unknown";
-            bin = "${pkg}/bin/${name}";
-            path = if pathExists bin then bin else "${pkg}";
-          in "| ${name} | `${path}` |"
+          let info = getPkgBinInfo pkg;
+          in "| ${info.name} | `./${info.name}` |"
         ) packages;
       in header + rows + "\n\n";
 
@@ -219,7 +224,14 @@ let
           packagesTable = mkPackagesTable (skill.packages or []);
           needsMerge = hasPrepend || hasAppend || hasPackages;
         in
-        if needsMerge then ''
+        if needsMerge then
+          let
+            # Generate symlink commands for packages
+            pkgLinks = concatMapStringsSep "\n" (pkg:
+              let info = getPkgBinInfo pkg;
+              in ''ln -s "${info.path}" "$out/$dest/${info.name}"''
+            ) (skill.packages or []);
+          in ''
           dest=${skill.id}
           mkdir -p "$out/$dest"
           # Link all files except SKILL.md
@@ -229,6 +241,8 @@ let
               ln -s "$f" "$out/$dest/$fname"
             fi
           done
+          # Link package binaries
+          ${pkgLinks}
           # Create merged SKILL.md
           ${if hasPackages then ''
           cat > "$out/$dest/SKILL.md" <<'PACKAGES_EOF'
