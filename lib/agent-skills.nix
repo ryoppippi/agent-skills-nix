@@ -197,13 +197,16 @@ let
             else if subdir == "." then srcRoot + "/${rel}"
             else if rel == "." then srcRoot + "/${subdir}"
             else srcRoot + "/${subdir}/${rel}";
-          _ = if !pathExists absPath then
-            throw "agent-skills: skill ${name} path ${absPath} does not exist"
-          else if !pathExists (absPath + "/SKILL.md") then
-            throw "agent-skills: skill ${name} at ${absPath} is missing SKILL.md"
-          else null;
+          validated =
+            if !pathExists absPath then
+              throw "agent-skills: skill ${name} path ${absPath} does not exist"
+            else if !pathExists (absPath + "/SKILL.md") then
+              throw "agent-skills: skill ${name} at ${absPath} is missing SKILL.md"
+            else if cfg ? transform && !isFunction cfg.transform then
+              throw "agent-skills: skill ${name} transform must be a function, got ${builtins.typeOf cfg.transform}"
+            else true;
           id = assertSkillId (cfg.rename or name);
-        in {
+        in assert validated; {
           inherit id absPath;
           relPath = rel;
           source = srcName;

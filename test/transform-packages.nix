@@ -83,6 +83,22 @@ ${original}
     };
   };
 
+  # Case 5: Error case - transform is not a function
+  invalidSelection = agentLib.selectSkills {
+    catalog = testCatalog;
+    allowlist = [];
+    sources = testSources;
+    skills = {
+      test-skill-invalid = {
+        from = "test-fixtures";
+        path = ".";
+        transform = "not a function";  # Should cause error
+      };
+    };
+  };
+  # Force deep evaluation to trigger the error
+  testInvalidTransform = builtins.tryEval (builtins.deepSeq invalidSelection invalidSelection);
+
   testBundleOriginalOnly = agentLib.mkBundle {
     inherit pkgs;
     selection = testSelectionOriginalOnly;
@@ -197,6 +213,18 @@ pkgs.runCommand "agent-skills-transform-packages-test" {} ''
   ! grep -q "## Dependencies" "$skillMd4" || { echo "Should not have Dependencies section"; exit 1; }
 
   echo "Case 4 passed!"
+
+  echo ""
+  echo "=== Case 5: Error case (invalid transform) ==="
+  # testInvalidTransform.success should be false because transform is not a function
+  ${if testInvalidTransform.success then ''
+    echo "ERROR: Invalid transform should have failed but succeeded"
+    exit 1
+  '' else ''
+    echo "Correctly rejected non-function transform"
+  ''}
+
+  echo "Case 5 passed!"
 
   echo ""
   echo "All tests passed!"
