@@ -21,7 +21,7 @@
       forAllSystems = lib.genAttrs systems;
       agentLib = import ./lib/agent-skills.nix { inherit lib inputs; };
 
-      # Global targets: installed to $HOME
+      # Global targets: respects CODEX_HOME/CLAUDE_CONFIG_DIR environment variables.
       defaultTargets = {
         codex = {
           dest = "\${CODEX_HOME:-$HOME/.codex}/skills";
