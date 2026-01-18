@@ -204,6 +204,82 @@ let
       meta = skill.meta or {};
     }) catalog;
 
+  # Default local targets for project-local skill installation.
+  # Uses relative paths for project-local installation (not global env vars).
+  defaultLocalTargets = {
+    codex = { dest = ".codex/skills"; };
+    claude = { dest = ".claude/skills"; };
+  };
+
+  # Create a local install script for use in consumer flakes.
+  # This allows projects to install skills to their local directory.
+  # Safety: Only overwrites if destination is a symlink to Nix store or doesn't exist.
+  mkLocalInstallScript = { pkgs, bundle, targets ? defaultLocalTargets }:
+    let
+      dests = builtins.concatStringsSep " " (map (t: t.dest) (builtins.attrValues targets));
+    in
+    pkgs.writeShellApplication {
+      name = "skills-install-local";
+      runtimeInputs = [ pkgs.rsync pkgs.coreutils ];
+      text = ''
+        root="''${AGENT_SKILLS_ROOT:-$PWD}"
+        dests="${dests}"
+        if [ -n "''${AGENT_SKILLS_LOCAL_DESTS:-}" ]; then
+          dests="$AGENT_SKILLS_LOCAL_DESTS"
+        fi
+        bundle=${bundle}
+        if [ ! -d "$bundle" ]; then
+          echo "agent-skills: bundle not built" >&2
+          exit 1
+        fi
+
+        # Check if path is safe to overwrite (doesn't exist, or is a symlink to Nix store)
+        is_safe_to_overwrite() {
+          local path="$1"
+          if [ ! -e "$path" ]; then
+            return 0  # Doesn't exist, safe
+          fi
+          if [ -L "$path" ]; then
+            local target
+            target="$(readlink -f "$path")"
+            if [[ "$target" == /nix/store/* ]]; then
+              return 0  # Symlink to Nix store, safe
+            fi
+          fi
+          return 1  # Not safe
+        }
+
+        for dest in $dests; do
+          if [ -z "$dest" ]; then continue; fi
+          full_dest="$root/$dest"
+
+          if ! is_safe_to_overwrite "$full_dest"; then
+            echo "agent-skills: $full_dest exists and is not a Nix-managed path" >&2
+            echo "agent-skills: skipping to avoid overwriting user data" >&2
+            echo "agent-skills: remove manually or set AGENT_SKILLS_FORCE=1 to overwrite" >&2
+            if [ "''${AGENT_SKILLS_FORCE:-}" != "1" ]; then
+              continue
+            fi
+            echo "agent-skills: AGENT_SKILLS_FORCE=1 set, overwriting anyway" >&2
+          fi
+
+          mkdir -p "$(dirname "$full_dest")"
+          rm -rf "$full_dest"
+          ln -s "$bundle" "$full_dest"
+          echo "agent-skills: installed to $full_dest"
+        done
+      '';
+    };
+
+  # Create a shellHook string for use in devShells.
+  # Automatically installs skills when entering the dev shell.
+  mkShellHook = { pkgs, bundle, targets ? defaultLocalTargets }:
+    let
+      installScript = mkLocalInstallScript { inherit pkgs bundle targets; };
+    in ''
+      ${installScript}/bin/skills-install-local
+    '';
+
 in
 {
   discoverCatalog = discoverCatalog;
@@ -212,4 +288,7 @@ in
   targetsFor = targetsFor;
   mkBundle = mkBundle;
   catalogJson = catalogJson;
+  mkLocalInstallScript = mkLocalInstallScript;
+  mkShellHook = mkShellHook;
+  defaultLocalTargets = defaultLocalTargets;
 }
