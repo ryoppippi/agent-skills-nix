@@ -96,6 +96,58 @@ in { inherit catalog selection bundle; }
 
 `discoverCatalog` enforces `SKILL.md` presence and rejects duplicate IDs. `selectSkills` errors on unknown allowlist entries or missing files, preventing accidental drift. (Home Manager maps `skills.enable` → `allowlist` and `skills.explicit` → `skills`.)
 
+## Skill customisation
+
+Explicit skills support `prepend`, `append`, and `packages` options to customise SKILL.md and bundle dependencies:
+
+```nix
+programs.agent-skills.skills.explicit = {
+  my-skill = {
+    from = "my-source";
+    path = "some-skill";
+    packages = [ pkgs.jq pkgs.curl ];  # Symlinked into skill directory
+    prepend = ''
+      # Custom Notes
+      This skill requires jq and curl.
+    '';
+    append = ''
+      # See Also
+      - https://example.com
+    '';
+  };
+};
+```
+
+This generates:
+
+```
+my-skill/
+├── SKILL.md
+├── jq -> /nix/store/xxx-jq/bin/jq
+└── curl -> /nix/store/xxx-curl/bin/curl
+```
+
+With SKILL.md containing:
+
+```markdown
+## Dependencies
+
+| Package | Path |
+|---------|------|
+| jq | `./jq` |
+| curl | `./curl` |
+
+# Custom Notes
+This skill requires jq and curl.
+
+[Original SKILL.md content]
+
+# See Also
+- https://example.com
+```
+
+Package binaries are referenced with local paths (`./jq`) to reduce context consumption when agents load the skill.
+
 ## Apps usage
 
 - List catalog: `nix run .#skills-list`
