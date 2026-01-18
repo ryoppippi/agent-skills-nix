@@ -23,8 +23,18 @@
 
       # Global targets: installed to $HOME
       defaultTargets = {
-        codex = { dest = ".codex/skills"; structure = "symlink-tree"; enable = true; systems = []; };
-        claude = { dest = ".claude/skills"; structure = "symlink-tree"; enable = true; systems = []; };
+        codex = {
+          dest = "\${CODEX_HOME:-$HOME/.codex}/skills";
+          structure = "symlink-tree";
+          enable = true;
+          systems = [];
+        };
+        claude = {
+          dest = "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills";
+          structure = "symlink-tree";
+          enable = true;
+          systems = [];
+        };
       };
 
       # Local targets: installed to project root (current working directory)
@@ -67,7 +77,7 @@
 
       defaultDests = system:
         builtins.concatStringsSep " "
-          (map (t: "$HOME/${t.dest}") (builtins.attrValues (targetsFor system)));
+          (map (t: t.dest) (builtins.attrValues (targetsFor system)));
 
       defaultLocalDests = system:
         builtins.concatStringsSep " "

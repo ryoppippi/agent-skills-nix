@@ -22,7 +22,15 @@ let
 
       dest = lib.mkOption {
         type = lib.types.str;
-        description = "Destination relative to $HOME (e.g. .codex/skills).";
+        description = ''
+          Destination path for skills. Supports shell variable expansion at runtime.
+          Examples:
+            - ".codex/skills" (relative to $HOME, legacy style)
+            - "''${CODEX_HOME:-$HOME/.codex}/skills" (with environment variable)
+            - "''${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills" (with environment variable)
+          Note: 'link' structure type does not support shell variable expansion;
+          use 'symlink-tree' or 'copy-tree' for dynamic paths.
+        '';
       };
 
       structure = lib.mkOption {
