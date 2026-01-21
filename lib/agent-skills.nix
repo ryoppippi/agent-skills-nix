@@ -355,6 +355,84 @@ let
       '';
     };
 
+  # Create a sync script for user-level installation targets.
+  # Respects target enable/system filters and structure (link/symlink-tree/copy-tree).
+  # Optionally allows overriding destinations via an environment variable.
+  mkSyncScript = {
+    pkgs,
+    bundle,
+    targets,
+    system ? pkgs.system,
+    allowOverrides ? false,
+    overrideEnvVar ? "AGENT_SKILLS_DESTS",
+    overrideStructure ? "symlink-tree",
+  }:
+    let
+      activeTargets = targetsFor { inherit targets system; };
+      targetsList = lib.mapAttrsToList (name: t:
+        let
+          structure = t.structure or "symlink-tree";
+          dest = t.dest;
+        in
+          ''"${name}|${structure}|${dest}"''
+      ) activeTargets;
+      targetsArray = lib.concatStringsSep "\n  " targetsList;
+      overrideVar = "\${" + overrideEnvVar + ":-}";
+      overrideSnippet = if allowOverrides then ''
+        if [ -n "${overrideVar}" ]; then
+          read -r -a override <<< "${overrideVar}"
+          for dest in "''${override[@]}"; do
+            if [ -z "$dest" ]; then continue; fi
+            sync_dest "$dest" "${overrideStructure}" "override"
+          done
+          exit 0
+        fi
+      '' else "";
+    in ''
+      bundle=${bundle}
+      if [ ! -d "$bundle" ]; then
+        echo "agent-skills: bundle not built" >&2
+        exit 1
+      fi
+
+      sync_dest() {
+        local dest="$1"
+        local structure="$2"
+        local name="$3"
+        case "$structure" in
+          link)
+            mkdir -p "$(dirname "$dest")"
+            rm -rf "$dest"
+            ln -s "$bundle" "$dest"
+            ;;
+          symlink-tree)
+            mkdir -p "$dest"
+            ${pkgs.rsync}/bin/rsync -a --delete "$bundle/" "$dest/"
+            ;;
+          copy-tree)
+            mkdir -p "$dest"
+            ${pkgs.rsync}/bin/rsync -aL --delete "$bundle/" "$dest/"
+            ;;
+          *)
+            echo "agent-skills: unknown structure '$structure' for target '$name'" >&2
+            exit 1
+            ;;
+        esac
+      }
+
+      ${overrideSnippet}
+
+      targets=(
+        ${targetsArray}
+      )
+
+      for entry in "''${targets[@]}"; do
+        IFS="|" read -r name structure dest <<< "$entry"
+        if [ -z "$dest" ]; then continue; fi
+        sync_dest "$dest" "$structure" "$name"
+      done
+    '';
+
   # Create a shellHook string for use in devShells.
   # Automatically installs skills when entering the dev shell.
   mkShellHook = { pkgs, bundle, targets ? defaultLocalTargets }:
@@ -373,6 +451,7 @@ in
   mkBundle = mkBundle;
   catalogJson = catalogJson;
   mkLocalInstallScript = mkLocalInstallScript;
+  mkSyncScript = mkSyncScript;
   mkShellHook = mkShellHook;
   defaultTargets = defaultTargets;
   defaultLocalTargets = defaultLocalTargets;

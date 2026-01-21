@@ -17,24 +17,11 @@ let
   linkTargets = lib.filterAttrs (_: t: t.structure == "link") activeTargets;
   syncTargets = lib.filterAttrs (_: t: t.structure != "link") activeTargets;
 
-  syncScript = bundle: ''
-    bundle=${bundle}
-    if [ ! -d "$bundle" ]; then
-      echo "agent-skills: bundle not found at $bundle" >&2
-      exit 1
-    fi
-  '' + lib.concatStringsSep "\n" (lib.mapAttrsToList (_: t:
-    let
-      dest = t.dest;
-      syncCmd = if t.structure == "copy-tree" then
-        ''${pkgs.rsync}/bin/rsync -aL --delete "${bundle}/" "${dest}/"''
-      else
-        ''${pkgs.rsync}/bin/rsync -a --delete "${bundle}/" "${dest}/"'';
-    in ''
-      mkdir -p "${dest}"
-      ${syncCmd}
-    ''
-  ) syncTargets);
+  syncScript = bundle: agentLib.mkSyncScript {
+    inherit pkgs bundle;
+    targets = syncTargets;
+    system = pkgs.system;
+  };
 in
 {
   imports = [ (import ../common.nix { inherit inputs lib; }) ];
