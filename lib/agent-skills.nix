@@ -204,6 +204,23 @@ let
       meta = skill.meta or {};
     }) catalog;
 
+  # Default global targets for user-level installation.
+  # Respects CODEX_HOME and CLAUDE_CONFIG_DIR environment variables.
+  defaultTargets = {
+    codex = {
+      dest = "\${CODEX_HOME:-$HOME/.codex}/skills";
+      structure = "symlink-tree";
+      enable = true;
+      systems = [];
+    };
+    claude = {
+      dest = "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills";
+      structure = "symlink-tree";
+      enable = true;
+      systems = [];
+    };
+  };
+
   # Default local targets for project-local skill installation.
   # Uses relative paths for project-local installation (not global env vars).
   defaultLocalTargets = {
@@ -290,5 +307,6 @@ in
   catalogJson = catalogJson;
   mkLocalInstallScript = mkLocalInstallScript;
   mkShellHook = mkShellHook;
+  defaultTargets = defaultTargets;
   defaultLocalTargets = defaultLocalTargets;
 }

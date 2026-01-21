@@ -22,20 +22,7 @@
       agentLib = import ./lib/agent-skills.nix { inherit lib inputs; };
 
       # Global targets: respects CODEX_HOME/CLAUDE_CONFIG_DIR environment variables.
-      defaultTargets = {
-        codex = {
-          dest = "\${CODEX_HOME:-$HOME/.codex}/skills";
-          structure = "symlink-tree";
-          enable = true;
-          systems = [];
-        };
-        claude = {
-          dest = "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills";
-          structure = "symlink-tree";
-          enable = true;
-          systems = [];
-        };
-      };
+      defaultTargets = agentLib.defaultTargets;
 
       # Local targets: installed to project root (current working directory)
       # Uses relative paths for project-local installation (not global env vars).
