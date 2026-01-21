@@ -224,30 +224,43 @@ let
   # Default local targets for project-local skill installation.
   # Uses relative paths for project-local installation (not global env vars).
   defaultLocalTargets = {
-    codex = { dest = ".codex/skills"; };
-    claude = { dest = ".claude/skills"; };
+    codex = { dest = ".codex/skills"; structure = "copy-tree"; enable = true; systems = []; };
+    claude = { dest = ".claude/skills"; structure = "copy-tree"; enable = true; systems = []; };
   };
 
   # Create a local install script for use in consumer flakes.
   # This allows projects to install skills to their local directory.
-  # Safety: Only overwrites if destination is a symlink to Nix store or doesn't exist.
+  # Respects target enable/system filters and structure (link/symlink-tree/copy-tree).
   mkLocalInstallScript = { pkgs, bundle, targets ? defaultLocalTargets }:
     let
-      dests = builtins.concatStringsSep " " (map (t: t.dest) (builtins.attrValues targets));
+      activeTargets = targetsFor { inherit targets; system = pkgs.system; };
+      targetsList = lib.mapAttrsToList (name: t:
+        let
+          structure = t.structure or "copy-tree";
+          dest = t.dest;
+        in
+          ''"${name}|${structure}|${dest}"''
+      ) activeTargets;
+      targetsArray = lib.concatStringsSep "\n  " targetsList;
     in
     pkgs.writeShellApplication {
       name = "skills-install-local";
       runtimeInputs = [ pkgs.rsync pkgs.coreutils ];
       text = ''
         root="''${AGENT_SKILLS_ROOT:-$PWD}"
-        dests="${dests}"
-        if [ -n "''${AGENT_SKILLS_LOCAL_DESTS:-}" ]; then
-          dests="$AGENT_SKILLS_LOCAL_DESTS"
-        fi
         bundle=${bundle}
         if [ ! -d "$bundle" ]; then
           echo "agent-skills: bundle not built" >&2
           exit 1
+        fi
+
+        targets=(
+          ${targetsArray}
+        )
+
+        override=()
+        if [ -n "''${AGENT_SKILLS_LOCAL_DESTS:-}" ]; then
+          read -r -a override <<< "''${AGENT_SKILLS_LOCAL_DESTS:-}"
         fi
 
         # Check if path is safe to overwrite (doesn't exist, or is a symlink to Nix store)
