@@ -279,8 +279,14 @@ let
           return 1  # Not safe
         }
 
-        for dest in $dests; do
-          if [ -z "$dest" ]; then continue; fi
+        for i in "''${!targets[@]}"; do
+          IFS="|" read -r name structure dest <<< "''${targets[$i]}"
+          if [ -n "''${override[$i]:-}" ]; then
+            dest="''${override[$i]}"
+          fi
+          if [ -z "$dest" ]; then
+            continue
+          fi
           full_dest="$root/$dest"
 
           if ! is_safe_to_overwrite "$full_dest"; then
@@ -293,11 +299,59 @@ let
             echo "agent-skills: AGENT_SKILLS_FORCE=1 set, overwriting anyway" >&2
           fi
 
-          mkdir -p "$(dirname "$full_dest")"
-          rm -rf "$full_dest"
-          ln -s "$bundle" "$full_dest"
+          case "$structure" in
+            link)
+              mkdir -p "$(dirname "$full_dest")"
+              rm -rf "$full_dest"
+              ln -s "$bundle" "$full_dest"
+              ;;
+            symlink-tree)
+              if [ -L "$full_dest" ]; then
+                rm -rf "$full_dest"
+              fi
+              mkdir -p "$full_dest"
+              ${pkgs.rsync}/bin/rsync -a --delete "$bundle/" "$full_dest/"
+              ;;
+            copy-tree)
+              if [ -L "$full_dest" ]; then
+                rm -rf "$full_dest"
+              fi
+              mkdir -p "$full_dest"
+              ${pkgs.rsync}/bin/rsync -aL --delete "$bundle/" "$full_dest/"
+              ;;
+            *)
+              echo "agent-skills: unknown structure '$structure' for target '$name'" >&2
+              exit 1
+              ;;
+          esac
+
           echo "agent-skills: installed to $full_dest"
         done
+
+        if [ "''${#override[@]}" -gt "''${#targets[@]}" ]; then
+          for ((i=''${#targets[@]}; i<''${#override[@]}; i++)); do
+            dest="''${override[$i]}"
+            if [ -z "$dest" ]; then
+              continue
+            fi
+            full_dest="$root/$dest"
+            if ! is_safe_to_overwrite "$full_dest"; then
+              echo "agent-skills: $full_dest exists and is not a Nix-managed path" >&2
+              echo "agent-skills: skipping to avoid overwriting user data" >&2
+              echo "agent-skills: remove manually or set AGENT_SKILLS_FORCE=1 to overwrite" >&2
+              if [ "''${AGENT_SKILLS_FORCE:-}" != "1" ]; then
+                continue
+              fi
+              echo "agent-skills: AGENT_SKILLS_FORCE=1 set, overwriting anyway" >&2
+            fi
+            if [ -L "$full_dest" ]; then
+              rm -rf "$full_dest"
+            fi
+            mkdir -p "$full_dest"
+            ${pkgs.rsync}/bin/rsync -aL --delete "$bundle/" "$full_dest/"
+            echo "agent-skills: installed to $full_dest"
+          done
+        fi
       '';
     };
 
