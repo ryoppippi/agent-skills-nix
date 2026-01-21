@@ -61,7 +61,7 @@ Then load it from your main Home Manager config:
     enable = true;
     # Default targets use CODEX_HOME and CLAUDE_CONFIG_DIR environment variables
     # with fallback to $HOME/.codex and $HOME/.claude respectively.
-    # Custom targets can be configured as follows:
+    # Omit targets to use the defaults; customize or disable as needed:
     targets = {
       codex  = {
         dest = "\${CODEX_HOME:-$HOME/.codex}/skills";
@@ -80,6 +80,7 @@ Notes:
 
 - If you use a child flake, import both modules: `inputs.agent-skills.homeManagerModules.default` and `inputs.skills-config.homeManagerModules.default`.
 - Pass your flake `inputs` to Home Manager (e.g. `home-manager.extraSpecialArgs = { inherit inputs; };`) so source `input` names resolve.
+- To disable a default target, set `targets.<name>.enable = false;` (e.g. `targets.codex.enable = false;`).
 - `structure = "link"` uses `home.file` symlinks; `symlink-tree` and `copy-tree` run in `home.activation`.
 - `symlink-tree` uses `rsync -a --delete` (preserve symlinks); `copy-tree` uses `rsync -aL --delete` (dereference symlinks).
 - `dest` supports shell variable expansion at runtime (e.g. `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills`). Note: `link` structure does not support shell variables and will use the fallback path.
@@ -88,7 +89,7 @@ Notes:
 
 - `packages.<system>.agent-skills-bundle`: Store bundle of selected skills (empty by default; configure in consumers).
 - `apps.<system>.skills-install`: Sync bundle to global targets (respects `CODEX_HOME` and `CLAUDE_CONFIG_DIR` environment variables, with fallback to `$HOME/.codex/skills` and `$HOME/.claude/skills`). Override destinations with `AGENT_SKILLS_DESTS`.
-- `apps.<system>.skills-install-local`: Sync bundle to local targets (`.codex/skills`, `.claude/skills` relative to current directory). Override root with `AGENT_SKILLS_ROOT`, destinations with `AGENT_SKILLS_LOCAL_DESTS`.
+- `apps.<system>.skills-install-local`: Sync bundle to local targets (default `.codex/skills`, `.claude/skills` with `copy-tree`). Override root with `AGENT_SKILLS_ROOT`, destinations with `AGENT_SKILLS_LOCAL_DESTS`.
 - `apps.<system>.skills-list`: JSON view of the default catalog.
 - `checks.<system>.skills`: Sanity check that the bundle builds.
 - `homeManagerModules.default`: Home Manager module implementing the DSL above.
@@ -119,6 +120,8 @@ in { inherit catalog selection bundle; }
 - Sync bundle to current directory: `nix run .#skills-install-local`
 
 Local skills are installed to `.claude/skills` and `.codex/skills` relative to the current working directory (or `AGENT_SKILLS_ROOT` if set). Override destinations via `AGENT_SKILLS_LOCAL_DESTS`.
+Targets respect `enable`, `systems`, and `structure` (default `copy-tree`). To exclude Codex, disable the target or provide custom targets to `mkLocalInstallScript`.
+Local install skips non-Nix-managed existing paths to avoid clobbering user data; set `AGENT_SKILLS_FORCE=1` to overwrite.
 
 Both apps operate on the flake's default (empty) config; point at your own flake/module for real catalogs.
 

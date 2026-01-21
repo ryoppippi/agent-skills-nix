@@ -204,33 +204,63 @@ let
       meta = skill.meta or {};
     }) catalog;
 
+  # Default global targets for user-level installation.
+  # Respects CODEX_HOME and CLAUDE_CONFIG_DIR environment variables.
+  defaultTargets = {
+    codex = {
+      dest = "\${CODEX_HOME:-$HOME/.codex}/skills";
+      structure = "symlink-tree";
+      enable = true;
+      systems = [];
+    };
+    claude = {
+      dest = "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills";
+      structure = "symlink-tree";
+      enable = true;
+      systems = [];
+    };
+  };
+
   # Default local targets for project-local skill installation.
   # Uses relative paths for project-local installation (not global env vars).
   defaultLocalTargets = {
-    codex = { dest = ".codex/skills"; };
-    claude = { dest = ".claude/skills"; };
+    codex = { dest = ".codex/skills"; structure = "copy-tree"; enable = true; systems = []; };
+    claude = { dest = ".claude/skills"; structure = "copy-tree"; enable = true; systems = []; };
   };
 
   # Create a local install script for use in consumer flakes.
   # This allows projects to install skills to their local directory.
-  # Safety: Only overwrites if destination is a symlink to Nix store or doesn't exist.
+  # Respects target enable/system filters and structure (link/symlink-tree/copy-tree).
   mkLocalInstallScript = { pkgs, bundle, targets ? defaultLocalTargets }:
     let
-      dests = builtins.concatStringsSep " " (map (t: t.dest) (builtins.attrValues targets));
+      activeTargets = targetsFor { inherit targets; system = pkgs.system; };
+      targetsList = lib.mapAttrsToList (name: t:
+        let
+          structure = t.structure or "copy-tree";
+          dest = t.dest;
+        in
+          ''"${name}|${structure}|${dest}"''
+      ) activeTargets;
+      targetsArray = lib.concatStringsSep "\n  " targetsList;
     in
     pkgs.writeShellApplication {
       name = "skills-install-local";
       runtimeInputs = [ pkgs.rsync pkgs.coreutils ];
       text = ''
         root="''${AGENT_SKILLS_ROOT:-$PWD}"
-        dests="${dests}"
-        if [ -n "''${AGENT_SKILLS_LOCAL_DESTS:-}" ]; then
-          dests="$AGENT_SKILLS_LOCAL_DESTS"
-        fi
         bundle=${bundle}
         if [ ! -d "$bundle" ]; then
           echo "agent-skills: bundle not built" >&2
           exit 1
+        fi
+
+        targets=(
+          ${targetsArray}
+        )
+
+        override=()
+        if [ -n "''${AGENT_SKILLS_LOCAL_DESTS:-}" ]; then
+          read -r -a override <<< "''${AGENT_SKILLS_LOCAL_DESTS:-}"
         fi
 
         # Check if path is safe to overwrite (doesn't exist, or is a symlink to Nix store)
@@ -249,8 +279,14 @@ let
           return 1  # Not safe
         }
 
-        for dest in $dests; do
-          if [ -z "$dest" ]; then continue; fi
+        for i in "''${!targets[@]}"; do
+          IFS="|" read -r name structure dest <<< "''${targets[$i]}"
+          if [ -n "''${override[$i]:-}" ]; then
+            dest="''${override[$i]}"
+          fi
+          if [ -z "$dest" ]; then
+            continue
+          fi
           full_dest="$root/$dest"
 
           if ! is_safe_to_overwrite "$full_dest"; then
@@ -263,13 +299,139 @@ let
             echo "agent-skills: AGENT_SKILLS_FORCE=1 set, overwriting anyway" >&2
           fi
 
-          mkdir -p "$(dirname "$full_dest")"
-          rm -rf "$full_dest"
-          ln -s "$bundle" "$full_dest"
+          case "$structure" in
+            link)
+              mkdir -p "$(dirname "$full_dest")"
+              rm -rf "$full_dest"
+              ln -s "$bundle" "$full_dest"
+              ;;
+            symlink-tree)
+              if [ -L "$full_dest" ]; then
+                rm -rf "$full_dest"
+              fi
+              mkdir -p "$full_dest"
+              ${pkgs.rsync}/bin/rsync -a --delete "$bundle/" "$full_dest/"
+              ;;
+            copy-tree)
+              if [ -L "$full_dest" ]; then
+                rm -rf "$full_dest"
+              fi
+              mkdir -p "$full_dest"
+              ${pkgs.rsync}/bin/rsync -aL --delete "$bundle/" "$full_dest/"
+              ;;
+            *)
+              echo "agent-skills: unknown structure '$structure' for target '$name'" >&2
+              exit 1
+              ;;
+          esac
+
           echo "agent-skills: installed to $full_dest"
         done
+
+        if [ "''${#override[@]}" -gt "''${#targets[@]}" ]; then
+          for ((i=''${#targets[@]}; i<''${#override[@]}; i++)); do
+            dest="''${override[$i]}"
+            if [ -z "$dest" ]; then
+              continue
+            fi
+            full_dest="$root/$dest"
+            if ! is_safe_to_overwrite "$full_dest"; then
+              echo "agent-skills: $full_dest exists and is not a Nix-managed path" >&2
+              echo "agent-skills: skipping to avoid overwriting user data" >&2
+              echo "agent-skills: remove manually or set AGENT_SKILLS_FORCE=1 to overwrite" >&2
+              if [ "''${AGENT_SKILLS_FORCE:-}" != "1" ]; then
+                continue
+              fi
+              echo "agent-skills: AGENT_SKILLS_FORCE=1 set, overwriting anyway" >&2
+            fi
+            if [ -L "$full_dest" ]; then
+              rm -rf "$full_dest"
+            fi
+            mkdir -p "$full_dest"
+            ${pkgs.rsync}/bin/rsync -aL --delete "$bundle/" "$full_dest/"
+            echo "agent-skills: installed to $full_dest"
+          done
+        fi
       '';
     };
+
+  # Create a sync script for user-level installation targets.
+  # Respects target enable/system filters and structure (link/symlink-tree/copy-tree).
+  # Optionally allows overriding destinations via an environment variable.
+  mkSyncScript = {
+    pkgs,
+    bundle,
+    targets,
+    system ? pkgs.system,
+    allowOverrides ? false,
+    overrideEnvVar ? "AGENT_SKILLS_DESTS",
+    overrideStructure ? "symlink-tree",
+  }:
+    let
+      activeTargets = targetsFor { inherit targets system; };
+      targetsList = lib.mapAttrsToList (name: t:
+        let
+          structure = t.structure or "symlink-tree";
+          dest = t.dest;
+        in
+          ''"${name}|${structure}|${dest}"''
+      ) activeTargets;
+      targetsArray = lib.concatStringsSep "\n  " targetsList;
+      overrideVar = "\${" + overrideEnvVar + ":-}";
+      overrideSnippet = if allowOverrides then ''
+        if [ -n "${overrideVar}" ]; then
+          read -r -a override <<< "${overrideVar}"
+          for dest in "''${override[@]}"; do
+            if [ -z "$dest" ]; then continue; fi
+            sync_dest "$dest" "${overrideStructure}" "override"
+          done
+          exit 0
+        fi
+      '' else "";
+    in ''
+      bundle=${bundle}
+      if [ ! -d "$bundle" ]; then
+        echo "agent-skills: bundle not built" >&2
+        exit 1
+      fi
+
+      sync_dest() {
+        local dest="$1"
+        local structure="$2"
+        local name="$3"
+        case "$structure" in
+          link)
+            mkdir -p "$(dirname "$dest")"
+            rm -rf "$dest"
+            ln -s "$bundle" "$dest"
+            ;;
+          symlink-tree)
+            mkdir -p "$dest"
+            ${pkgs.rsync}/bin/rsync -a --delete "$bundle/" "$dest/"
+            ;;
+          copy-tree)
+            mkdir -p "$dest"
+            ${pkgs.rsync}/bin/rsync -aL --delete "$bundle/" "$dest/"
+            ;;
+          *)
+            echo "agent-skills: unknown structure '$structure' for target '$name'" >&2
+            exit 1
+            ;;
+        esac
+      }
+
+      ${overrideSnippet}
+
+      targets=(
+        ${targetsArray}
+      )
+
+      for entry in "''${targets[@]}"; do
+        IFS="|" read -r name structure dest <<< "$entry"
+        if [ -z "$dest" ]; then continue; fi
+        sync_dest "$dest" "$structure" "$name"
+      done
+    '';
 
   # Create a shellHook string for use in devShells.
   # Automatically installs skills when entering the dev shell.
@@ -289,6 +451,8 @@ in
   mkBundle = mkBundle;
   catalogJson = catalogJson;
   mkLocalInstallScript = mkLocalInstallScript;
+  mkSyncScript = mkSyncScript;
   mkShellHook = mkShellHook;
+  defaultTargets = defaultTargets;
   defaultLocalTargets = defaultLocalTargets;
 }

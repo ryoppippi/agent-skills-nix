@@ -159,7 +159,7 @@ in
 
     targets = lib.mkOption {
       type = lib.types.attrsOf targetType;
-      default = {};
+      default = agentLib.defaultTargets;
       description = "Agent-specific sync destinations.";
     };
 
