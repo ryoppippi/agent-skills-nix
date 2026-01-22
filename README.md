@@ -108,6 +108,51 @@ in { inherit catalog selection bundle; }
 
 `discoverCatalog` enforces `SKILL.md` presence and rejects duplicate IDs. `selectSkills` errors on unknown allowlist entries or missing files, preventing accidental drift. (Home Manager maps `skills.enable` → `allowlist` and `skills.explicit` → `skills`.)
 
+## Skill customisation
+
+Explicit skills support `transform` and `packages` options to customise SKILL.md and bundle dependencies:
+
+```nix
+programs.agent-skills.skills.explicit = {
+  my-skill = {
+    from = "my-source";
+    path = "some-skill";
+    packages = [ pkgs.jq pkgs.curl ];  # Symlinked into skill directory
+    transform = { original, dependencies }: ''
+      # Custom Header
+
+      ${dependencies}
+
+      ${original}
+
+      # See Also
+      - https://example.com
+    '';
+  };
+};
+```
+
+This generates:
+
+```
+my-skill/
+├── SKILL.md
+├── jq -> /nix/store/xxx-jq/bin/jq
+└── curl/ -> /nix/store/xxx-curl/bin/  (for packages with multiple binaries)
+```
+
+With SKILL.md containing the transformed content.
+
+**Transform function arguments:**
+- `original`: The original SKILL.md content
+- `dependencies`: A markdown table of package dependencies with local paths (e.g., `./jq`)
+
+**Default behaviour (no transform):**
+- If only `packages` is specified, the default is `dependencies + original`
+- If neither is specified, the original SKILL.md is used as-is
+
+Package binaries are referenced with local paths (`./jq` or `./pkg/` for multi-binary packages) to reduce context consumption when agents load the skill.
+
 ## Apps usage
 
 ### Global skills (Home Manager)

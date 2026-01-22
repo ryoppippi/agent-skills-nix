@@ -8,10 +8,12 @@ let
     foldl'
     hasAttr
     isBool
+    isFunction
     isList
     match
     pathExists
     readDir
+    readFile
     ;
 
   inherit (lib)
@@ -127,6 +129,48 @@ let
       ++ enable
     );
 
+  # Get binary info for a package (name, store path, and whether it has multiple binaries)
+  getPkgBinInfo = pkg:
+    let
+      name = pkg.pname or pkg.name or "unknown";
+      binDir = "${pkg}/bin";
+      singleBin = "${binDir}/${name}";
+      hasBinDir = pathExists binDir;
+      hasSingleBin = pathExists singleBin;
+      # List all binaries in the bin directory
+      binEntries = if hasBinDir then attrNames (readDir binDir) else [];
+      binCount = builtins.length binEntries;
+      # Only use single binary if it exists AND is the only binary
+      useSingleBin = hasSingleBin && binCount == 1;
+    in {
+      inherit name;
+      path = if useSingleBin then singleBin else if hasBinDir then binDir else "${pkg}";
+      isDir = hasBinDir && !useSingleBin;
+      binaries = if binCount > 1 then binEntries else [];
+    };
+
+  # Generate markdown table for packages (using local paths)
+  mkPackagesTable = packages:
+    if packages == [] then ""
+    else
+      let
+        header = ''
+## Dependencies
+
+| Package | Path |
+|---------|------|
+'';
+        rows = concatMapStringsSep "\n" (pkg:
+          let
+            info = getPkgBinInfo pkg;
+            localPath = if info.isDir then "./${info.name}/" else "./${info.name}";
+            note = if info.isDir && info.binaries != []
+              then " (contains: ${lib.concatStringsSep ", " (lib.take 5 info.binaries)}${if builtins.length info.binaries > 5 then ", ..." else ""})"
+              else "";
+          in "| ${info.name} | `${localPath}`${note} |"
+        ) packages;
+      in header + rows + "\n\n";
+
   # Build selection from allowlist + explicit skills.
   selectSkills = { catalog, allowlist ? [], skills ? {}, sources }:
     let
@@ -148,18 +192,27 @@ let
           srcRoot = resolveSourceRoot srcName sourceCfg;
           subdir = sourceCfg.subdir or ".";
           rel = cfg.path or name;
-          absPath = srcRoot + "/" + subdir + "/" + rel;
-          _ = if !pathExists absPath then
-            throw "agent-skills: skill ${name} path ${absPath} does not exist"
-          else if !pathExists (absPath + "/SKILL.md") then
-            throw "agent-skills: skill ${name} at ${absPath} is missing SKILL.md"
-          else null;
+          absPath =
+            if subdir == "." && rel == "." then srcRoot
+            else if subdir == "." then srcRoot + "/${rel}"
+            else if rel == "." then srcRoot + "/${subdir}"
+            else srcRoot + "/${subdir}/${rel}";
+          validated =
+            if !pathExists absPath then
+              throw "agent-skills: skill ${name} path ${absPath} does not exist"
+            else if !pathExists (absPath + "/SKILL.md") then
+              throw "agent-skills: skill ${name} at ${absPath} is missing SKILL.md"
+            else if cfg ? transform && !isFunction cfg.transform then
+              throw "agent-skills: skill ${name} transform must be a function, got ${builtins.typeOf cfg.transform}"
+            else true;
           id = assertSkillId (cfg.rename or name);
-        in {
+        in assert validated; {
           inherit id absPath;
           relPath = rel;
           source = srcName;
           meta = cfg.meta or {};
+          transform = cfg.transform or null;
+          packages = cfg.packages or [];
         }
       ) explicit;
 
@@ -184,11 +237,51 @@ let
   mkBundle = { pkgs, selection, name ? "agent-skills-bundle" }:
     let
       skills = map (id: selection.${id} // { inherit id; }) (attrNames selection);
-      buildCommands = concatMapStringsSep "\n" (skill: ''
-        dest=${skill.id}
-        mkdir -p "$out/$(dirname "$dest")"
-        ln -s ${skill.absPath} "$out/$dest"
-      '') skills;
+      buildCommands = concatMapStringsSep "\n" (skill:
+        let
+          hasTransform = skill ? transform && skill.transform != null && isFunction skill.transform;
+          hasPackages = (skill.packages or []) != [];
+          needsCustomisation = hasTransform || hasPackages;
+
+          # Read original SKILL.md content at evaluation time
+          originalContent = readFile (skill.absPath + "/SKILL.md");
+          packagesTable = mkPackagesTable (skill.packages or []);
+
+          # Apply transform function or use default (dependencies + original)
+          transformedContent =
+            if hasTransform then
+              skill.transform { original = originalContent; dependencies = packagesTable; }
+            else
+              packagesTable + originalContent;
+        in
+        if needsCustomisation then
+          let
+            # Generate symlink commands for packages
+            pkgLinks = concatMapStringsSep "\n" (pkg:
+              let info = getPkgBinInfo pkg;
+              in ''ln -s "${info.path}" "$out/$dest/${info.name}"''
+            ) (skill.packages or []);
+          in ''
+          dest=${skill.id}
+          mkdir -p "$out/$dest"
+          # Link all files except SKILL.md
+          for f in ${skill.absPath}/*; do
+            fname="$(basename "$f")"
+            if [ "$fname" != "SKILL.md" ]; then
+              ln -s "$f" "$out/$dest/$fname"
+            fi
+          done
+          # Link package binaries
+          ${pkgLinks}
+          # Create transformed SKILL.md
+          cat > "$out/$dest/SKILL.md" <<'SKILL_EOF'
+${transformedContent}
+SKILL_EOF
+        '' else ''
+          dest=${skill.id}
+          mkdir -p "$out/$(dirname "$dest")"
+          ln -s ${skill.absPath} "$out/$dest"
+        '') skills;
     in
     pkgs.runCommand name { preferLocalBuild = true; } ''
       mkdir -p "$out"
@@ -449,6 +542,8 @@ in
   allowlistFor = allowlistFor;
   targetsFor = targetsFor;
   mkBundle = mkBundle;
+  mkPackagesTable = mkPackagesTable;
+  getPkgBinInfo = getPkgBinInfo;
   catalogJson = catalogJson;
   mkLocalInstallScript = mkLocalInstallScript;
   mkSyncScript = mkSyncScript;
