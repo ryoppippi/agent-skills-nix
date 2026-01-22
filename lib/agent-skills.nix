@@ -262,10 +262,10 @@ let
               in ''ln -s "${info.path}" "$out/$dest/${info.name}"''
             ) (skill.packages or []);
           in ''
-          dest=${skill.id}
+          dest=${lib.escapeShellArg skill.id}
           mkdir -p "$out/$dest"
           # Link all files except SKILL.md
-          for f in ${skill.absPath}/*; do
+          for f in ${lib.escapeShellArg skill.absPath}/* ${lib.escapeShellArg skill.absPath}/*.; do
             fname="$(basename "$f")"
             if [ "$fname" != "SKILL.md" ]; then
               ln -s "$f" "$out/$dest/$fname"
@@ -278,9 +278,9 @@ let
 ${transformedContent}
 SKILL_EOF
         '' else ''
-          dest=${skill.id}
+          dest=${lib.escapeShellArg skill.id}
           mkdir -p "$out/$(dirname "$dest")"
-          ln -s ${skill.absPath} "$out/$dest"
+          ln -s ${lib.escapeShellArg skill.absPath} "$out/$dest"
         '') skills;
     in
     pkgs.runCommand name { preferLocalBuild = true; } ''
