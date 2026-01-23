@@ -245,9 +245,12 @@ let
           hasTransform = skill ? transform && skill.transform != null && isFunction skill.transform;
           hasPackages = (skill.packages or []) != [];
           needsCustomisation = hasTransform || hasPackages;
+          skillName = lib.replaceStrings [ "/" ] [ "-" ] skill.id;
+          # This is necessary to make it readable within the nix store
+          skillPath = builtins.path { path = skill.absPath; name = "agent-skill-${skillName}"; };
 
           # Read original SKILL.md content at evaluation time
-          originalContent = readFile (skill.absPath + "/SKILL.md");
+          originalContent = readFile (skillPath + "/SKILL.md");
           packagesTable = mkPackagesTable (skill.packages or []);
 
           # Apply transform function or use default (dependencies + original)
@@ -268,7 +271,7 @@ let
           dest=${lib.escapeShellArg skill.id}
           mkdir -p "$out/$dest"
           # Link all files except SKILL.md
-          for f in ${lib.escapeShellArg skill.absPath}/* ${lib.escapeShellArg skill.absPath}/*.; do
+          for f in ${lib.escapeShellArg skillPath}/* ${lib.escapeShellArg skillPath}/*.; do
             fname="$(basename "$f")"
             if [ "$fname" != "SKILL.md" ]; then
               ln -s "$f" "$out/$dest/$fname"
@@ -283,7 +286,7 @@ SKILL_EOF
         '' else ''
           dest=${lib.escapeShellArg skill.id}
           mkdir -p "$out/$(dirname "$dest")"
-          ln -s ${lib.escapeShellArg skill.absPath} "$out/$dest"
+          ln -s ${lib.escapeShellArg skillPath} "$out/$dest"
         '') skills;
     in
     pkgs.runCommand name { preferLocalBuild = true; } ''
