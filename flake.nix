@@ -60,6 +60,8 @@
         agentLib.mkBundle { inherit pkgs; selection = defaultSelection; name = "agent-skills-bundle"; };
     in
     {
+      formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixpkgs-fmt);
+
       packages = forAllSystems (system: let
         bundle = bundleFor system;
       in {
