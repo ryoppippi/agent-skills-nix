@@ -28,6 +28,7 @@ let
             - ".codex/skills" (relative to $HOME, legacy style)
             - "''${CODEX_HOME:-$HOME/.codex}/skills" (with environment variable)
             - "''${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills" (with environment variable)
+            - "$HOME/.config/opencode/skills" (OpenCode global skills)
           Note: 'link' structure type does not support shell variable expansion;
           use 'symlink-tree' or 'copy-tree' for dynamic paths.
         '';

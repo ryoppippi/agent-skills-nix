@@ -305,6 +305,7 @@ SKILL_EOF
 
   # Default global targets for user-level installation.
   # Respects CODEX_HOME and CLAUDE_CONFIG_DIR environment variables.
+  # OpenCode defaults to $HOME/.config/opencode/skills.
   defaultTargets = {
     codex = {
       dest = "\${CODEX_HOME:-$HOME/.codex}/skills";
@@ -318,6 +319,12 @@ SKILL_EOF
       enable = true;
       systems = [];
     };
+    opencode = {
+      dest = "$HOME/.config/opencode/skills";
+      structure = "symlink-tree";
+      enable = true;
+      systems = [];
+    };
   };
 
   # Default local targets for project-local skill installation.
@@ -325,6 +332,7 @@ SKILL_EOF
   defaultLocalTargets = {
     codex = { dest = ".codex/skills"; structure = "copy-tree"; enable = true; systems = []; };
     claude = { dest = ".claude/skills"; structure = "copy-tree"; enable = true; systems = []; };
+    opencode = { dest = ".opencode/skills"; structure = "copy-tree"; enable = true; systems = []; };
   };
 
   # Create a local install script for use in consumer flakes.
