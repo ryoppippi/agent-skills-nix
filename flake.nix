@@ -123,6 +123,9 @@
             mkdir -p "$out"
             touch "$out/ok"
           '';
+          transform-packages = import ./test/transform-packages.nix {
+            inherit pkgs agentLib;
+          };
         });
 
       homeManagerModules.default =

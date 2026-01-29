@@ -114,6 +114,18 @@ let
         default = {};
         description = "Optional metadata override.";
       };
+
+      packages = lib.mkOption {
+        type = lib.types.listOf lib.types.package;
+        default = [];
+        description = "Packages to symlink into the skill directory.";
+      };
+
+      transform = lib.mkOption {
+        type = lib.types.nullOr lib.types.raw;
+        default = null;
+        description = "Function to transform SKILL.md content: { original, dependencies } -> string.";
+      };
     };
   });
 in
