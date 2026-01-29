@@ -253,12 +253,13 @@ let
           originalContent = readFile (skillPath + "/SKILL.md");
           packagesTable = mkPackagesTable (skill.packages or []);
 
-          # Apply transform function or use default (dependencies + original)
+          # Apply transform function or use default (original + dependencies at end)
+          # This preserves frontmatter at the start of the file
           transformedContent =
             if hasTransform then
               skill.transform { original = originalContent; dependencies = packagesTable; }
             else
-              packagesTable + originalContent;
+              originalContent + "\n" + packagesTable;
         in
         if needsCustomisation then
           let
