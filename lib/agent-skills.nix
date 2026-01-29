@@ -205,7 +205,7 @@ let
               throw "agent-skills: skill ${name} path ${absPath} does not exist"
             else if !pathExists (absPath + "/SKILL.md") then
               throw "agent-skills: skill ${name} at ${absPath} is missing SKILL.md"
-            else if cfg ? transform && !isFunction cfg.transform then
+            else if cfg ? transform && cfg.transform != null && !isFunction cfg.transform then
               throw "agent-skills: skill ${name} transform must be a function, got ${builtins.typeOf cfg.transform}"
             else true;
           id = assertSkillId (cfg.rename or name);
