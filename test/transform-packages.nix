@@ -159,10 +159,10 @@ pkgs.runCommand "agent-skills-transform-packages-test" {} ''
   # Check original content is included
   grep -q "# Test Skill" "$skillMd2" || { echo "Original content not found"; exit 1; }
 
-  # Check order: Dependencies -> Original
+  # Check order: Original -> Dependencies (preserves frontmatter)
   deps_line=$(grep -n "## Dependencies" "$skillMd2" | head -1 | cut -d: -f1)
   original_line=$(grep -n "# Test Skill" "$skillMd2" | head -1 | cut -d: -f1)
-  test "$deps_line" -lt "$original_line" || { echo "Dependencies should come before original"; exit 1; }
+  test "$original_line" -lt "$deps_line" || { echo "Original should come before Dependencies"; exit 1; }
 
   echo "Case 2 passed!"
 
