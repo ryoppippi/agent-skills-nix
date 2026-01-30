@@ -126,6 +126,9 @@
           transform-packages = import ./test/transform-packages.nix {
             inherit pkgs agentLib;
           };
+          targets = import ./test/targets.nix {
+            inherit pkgs agentLib;
+          };
         });
 
       homeManagerModules.default =
