@@ -12,7 +12,7 @@ let
   cfg = config.programs.agent-skills;
   agentLib = agentLibFor (args.inputs or {});
 
-  targetType = lib.types.submodule ({ config, ... }: {
+  targetType = lib.types.submodule ({ config, name, ... }: {
     options = {
       enable = lib.mkOption {
         type = lib.types.bool;
@@ -22,6 +22,10 @@ let
 
       dest = lib.mkOption {
         type = lib.types.str;
+        default =
+          if agentLib.defaultTargets ? ${name}
+          then agentLib.defaultTargets.${name}.dest
+          else throw "agent-skills: target '${name}' requires a 'dest' option";
         description = ''
           Destination path for skills. Supports shell variable expansion at runtime.
           Examples:
@@ -172,7 +176,7 @@ in
 
     targets = lib.mkOption {
       type = lib.types.attrsOf targetType;
-      default = agentLib.defaultTargets;
+      default = {};
       description = "Agent-specific sync destinations.";
     };
 
@@ -204,5 +208,8 @@ in
   in {
     programs.agent-skills.catalog = catalog;
     programs.agent-skills.bundlePath = bundle;
+    # Set default targets individually with low priority
+    # This allows users to override individual target settings without losing others
+    programs.agent-skills.targets = lib.mapAttrs (_: v: lib.mkDefault v) agentLib.defaultTargets;
   });
 }
