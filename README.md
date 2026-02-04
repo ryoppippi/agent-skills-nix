@@ -7,7 +7,7 @@ Declarative management of Agent Skills (directories containing `SKILL.md`) with 
 - **sources**: Named inputs (flake or path) pointing at a skills root (`subdir`).
 - **discover**: Scans sources for directories that contain `SKILL.md`, producing a catalog.
 - **skills.enable / skills.enableAll / skills.explicit**: Declaratively pick discovered skills, enable-all (global or by source list), and explicitly specified ones; no accidental auto-install unless you opt in.
-- **targets**: Agent-specific destinations synced from a store bundle (structure: `link`, `symlink-tree`, `copy-tree`). The `dest` option supports shell variable expansion at runtime (e.g. `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills`).
+- **targets**: Agent-specific destinations synced from a store bundle (structure: `link`, `symlink-tree`, `copy-tree`). The `dest` option supports shell variable expansion at runtime (e.g. `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills`). Default targets include `.agents/skills` (agentskills.io standard) and `.claude/skills` (Claude Code).
 
 ## Quick start (child flake + Home Manager)
 
@@ -59,21 +59,17 @@ Then load it from your main Home Manager config:
 
   programs.agent-skills = {
     enable = true;
-    # Default targets use CODEX_HOME and CLAUDE_CONFIG_DIR environment variables
-    # with fallback to $HOME/.codex and $HOME/.claude respectively. OpenCode
-    # uses $HOME/.config/opencode/skills.
-    # Omit targets to use the defaults; customize or disable as needed:
+    # Default targets:
+    #   - agents: $HOME/.agents/skills (agentskills.io standard for Codex, etc.)
+    #   - claude: ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills (Claude Code)
+    # Omit targets to use the defaults; customise or disable as needed:
     targets = {
-      codex  = {
-        dest = "\${CODEX_HOME:-$HOME/.codex}/skills";
+      agents = {
+        dest = "$HOME/.agents/skills";
         structure = "symlink-tree";
       };
       claude = {
         dest = "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills";
-        structure = "symlink-tree";
-      };
-      opencode = {
-        dest = "$HOME/.config/opencode/skills";
         structure = "symlink-tree";
       };
     };
@@ -85,7 +81,7 @@ Notes:
 
 - If you use a child flake, import both modules: `inputs.agent-skills.homeManagerModules.default` and `inputs.skills-config.homeManagerModules.default`.
 - Pass your flake `inputs` to Home Manager (e.g. `home-manager.extraSpecialArgs = { inherit inputs; };`) so source `input` names resolve.
-- To disable a default target, set `targets.<name>.enable = false;` (e.g. `targets.codex.enable = false;`).
+- To disable a default target, set `targets.<name>.enable = false;` (e.g. `targets.agents.enable = false;`).
 - `structure = "link"` uses `home.file` symlinks; `symlink-tree` and `copy-tree` run in `home.activation`.
 - `symlink-tree` uses `rsync -a --delete` (preserve symlinks); `copy-tree` uses `rsync -aL --delete` (dereference symlinks).
 - `dest` supports shell variable expansion at runtime (e.g. `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills`). Note: `link` structure does not support shell variables and will use the fallback path.
@@ -93,8 +89,8 @@ Notes:
 ## Flake outputs
 
 - `packages.<system>.agent-skills-bundle`: Store bundle of selected skills (empty by default; configure in consumers).
-- `apps.<system>.skills-install`: Sync bundle to global targets (respects `CODEX_HOME` and `CLAUDE_CONFIG_DIR` environment variables, with fallback to `$HOME/.codex/skills` and `$HOME/.claude/skills`; OpenCode defaults to `$HOME/.config/opencode/skills`). Override destinations with `AGENT_SKILLS_DESTS`.
-- `apps.<system>.skills-install-local`: Sync bundle to local targets (default `.codex/skills`, `.claude/skills`, `.opencode/skills` with `copy-tree`). Override root with `AGENT_SKILLS_ROOT`, destinations with `AGENT_SKILLS_LOCAL_DESTS`.
+- `apps.<system>.skills-install`: Sync bundle to global targets (`$HOME/.agents/skills` for agentskills.io standard, `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills` for Claude Code). Override destinations with `AGENT_SKILLS_DESTS`.
+- `apps.<system>.skills-install-local`: Sync bundle to local targets (default `.agents/skills`, `.claude/skills` with `copy-tree`). Override root with `AGENT_SKILLS_ROOT`, destinations with `AGENT_SKILLS_LOCAL_DESTS`.
 - `apps.<system>.skills-list`: JSON view of the default catalog.
 - `checks.<system>.skills`: Sanity check that the bundle builds.
 - `homeManagerModules.default`: Home Manager module implementing the DSL above.
@@ -169,8 +165,8 @@ Package binaries are referenced with local paths (`./jq` or `./pkg/` for multi-b
 
 - Sync bundle to current directory: `nix run .#skills-install-local`
 
-Local skills are installed to `.claude/skills`, `.codex/skills`, and `.opencode/skills` relative to the current working directory (or `AGENT_SKILLS_ROOT` if set). Override destinations via `AGENT_SKILLS_LOCAL_DESTS`.
-Targets respect `enable`, `systems`, and `structure` (default `copy-tree`). To exclude Codex, disable the target or provide custom targets to `mkLocalInstallScript`.
+Local skills are installed to `.agents/skills` and `.claude/skills` relative to the current working directory (or `AGENT_SKILLS_ROOT` if set). Override destinations via `AGENT_SKILLS_LOCAL_DESTS`.
+Targets respect `enable`, `systems`, and `structure` (default `copy-tree`). To exclude a target, disable it or provide custom targets to `mkLocalInstallScript`.
 Local install skips non-Nix-managed existing paths to avoid clobbering user data; set `AGENT_SKILLS_FORCE=1` to overwrite.
 
 Both apps operate on the flake's default (empty) config; point at your own flake/module for real catalogs.
@@ -219,7 +215,7 @@ To install skills locally in your project, use `mkLocalInstallScript` in your fl
 }
 ```
 
-Then run `nix run .#skills-install-local` from your project root to install skills to `.claude/skills`, `.codex/skills`, and `.opencode/skills`.
+Then run `nix run .#skills-install-local` from your project root to install skills to `.agents/skills` and `.claude/skills`.
 
 ### Auto-install with devShell
 

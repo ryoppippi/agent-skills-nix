@@ -305,11 +305,11 @@ SKILL_EOF
     }) catalog;
 
   # Default global targets for user-level installation.
-  # Respects CODEX_HOME and CLAUDE_CONFIG_DIR environment variables.
-  # OpenCode defaults to $HOME/.config/opencode/skills.
+  # Respects CLAUDE_CONFIG_DIR environment variable for Claude Code.
+  # Uses .agents/skills for agentskills.io standard (Codex, etc.).
   defaultTargets = {
-    codex = {
-      dest = "\${CODEX_HOME:-$HOME/.codex}/skills";
+    agents = {
+      dest = "$HOME/.agents/skills";
       structure = "symlink-tree";
       enable = true;
       systems = [];
@@ -320,20 +320,13 @@ SKILL_EOF
       enable = true;
       systems = [];
     };
-    opencode = {
-      dest = "$HOME/.config/opencode/skills";
-      structure = "symlink-tree";
-      enable = true;
-      systems = [];
-    };
   };
 
   # Default local targets for project-local skill installation.
   # Uses relative paths for project-local installation (not global env vars).
   defaultLocalTargets = {
-    codex = { dest = ".codex/skills"; structure = "copy-tree"; enable = true; systems = []; };
+    agents = { dest = ".agents/skills"; structure = "copy-tree"; enable = true; systems = []; };
     claude = { dest = ".claude/skills"; structure = "copy-tree"; enable = true; systems = []; };
-    opencode = { dest = ".opencode/skills"; structure = "copy-tree"; enable = true; systems = []; };
   };
 
   # Default exclude patterns for rsync synchronization.
