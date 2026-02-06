@@ -23,7 +23,10 @@
       forAllSystems = lib.genAttrs systems;
       agentLib = import ./lib/agent-skills.nix { inherit lib inputs; };
 
-      # Global targets: respects CODEX_HOME/CLAUDE_CONFIG_DIR environment variables.
+      # Global targets: .agents/skills (standard), CLAUDE_CONFIG_DIR for Claude Code,
+      # ~/.copilot/skills for GitHub Copilot, ~/.cursor/skills for Cursor,
+      # ~/.codeium/windsurf/skills for Windsurf, and ~/.gemini paths for
+      # Antigravity/Gemini CLI.
       defaultTargets = agentLib.defaultTargets;
 
       # Local targets: installed to project root (current working directory)

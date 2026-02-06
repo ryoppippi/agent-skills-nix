@@ -305,8 +305,14 @@ SKILL_EOF
     }) catalog;
 
   # Default global targets for user-level installation.
-  # Respects CLAUDE_CONFIG_DIR environment variable for Claude Code.
-  # Uses .agents/skills for agentskills.io standard (Codex, etc.).
+  # Path references:
+  # - Agent Skills standard: https://agentskills.io
+  # - Claude Code: https://docs.claude.com/en/docs/claude-code/skills
+  # - GitHub Copilot: https://docs.github.com/en/copilot/concepts/agents/about-agent-skills
+  # - Cursor: https://cursor.com/docs/context/skills
+  # - Windsurf: https://docs.windsurf.com/windsurf/cascade/skills
+  # - Gemini CLI: https://geminicli.com/docs/cli/skills/
+  # - Antigravity (path matrix): https://agentskillsrepo.com/docs
   defaultTargets = {
     agents = {
       dest = "$HOME/.agents/skills";
@@ -320,6 +326,36 @@ SKILL_EOF
       enable = true;
       systems = [];
     };
+    copilot = {
+      dest = "$HOME/.copilot/skills";
+      structure = "symlink-tree";
+      enable = true;
+      systems = [];
+    };
+    cursor = {
+      dest = "$HOME/.cursor/skills";
+      structure = "symlink-tree";
+      enable = true;
+      systems = [];
+    };
+    windsurf = {
+      dest = "$HOME/.codeium/windsurf/skills";
+      structure = "symlink-tree";
+      enable = true;
+      systems = [];
+    };
+    antigravity = {
+      dest = "$HOME/.gemini/antigravity/skills";
+      structure = "symlink-tree";
+      enable = true;
+      systems = [];
+    };
+    gemini = {
+      dest = "$HOME/.gemini/skills";
+      structure = "symlink-tree";
+      enable = true;
+      systems = [];
+    };
   };
 
   # Default local targets for project-local skill installation.
@@ -327,6 +363,11 @@ SKILL_EOF
   defaultLocalTargets = {
     agents = { dest = ".agents/skills"; structure = "copy-tree"; enable = true; systems = []; };
     claude = { dest = ".claude/skills"; structure = "copy-tree"; enable = true; systems = []; };
+    copilot = { dest = ".github/skills"; structure = "copy-tree"; enable = true; systems = []; };
+    cursor = { dest = ".cursor/skills"; structure = "copy-tree"; enable = true; systems = []; };
+    windsurf = { dest = ".windsurf/skills"; structure = "copy-tree"; enable = true; systems = []; };
+    antigravity = { dest = ".agent/skills"; structure = "copy-tree"; enable = true; systems = []; };
+    gemini = { dest = ".gemini/skills"; structure = "copy-tree"; enable = true; systems = []; };
   };
 
   # Default exclude patterns for rsync synchronization.
