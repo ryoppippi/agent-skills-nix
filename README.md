@@ -14,6 +14,7 @@ Declarative management of Agent Skills (directories containing `SKILL.md`) with 
 | Target | Global path | Local path |
 |--------|-------------|------------|
 | agents | `$HOME/.agents/skills` | `.agents/skills` |
+| codex | `${CODEX_HOME:-$HOME/.codex}/skills` | `.codex/skills` |
 | claude | `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills` | `.claude/skills` |
 | copilot | `$HOME/.copilot/skills` | `.github/skills` |
 | cursor | `$HOME/.cursor/skills` | `.cursor/skills` |
