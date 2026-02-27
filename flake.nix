@@ -136,6 +136,10 @@
             inherit pkgs;
             agentLib = lib;
           };
+          local-install-script = import ./test/local-install-script.nix {
+            inherit pkgs;
+            agentLib = lib;
+          };
           home-manager-warnings = import ./test/home-manager-warnings.nix {
             inherit pkgs;
             hmLib = home-manager.lib;
