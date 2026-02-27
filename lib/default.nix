@@ -415,9 +415,10 @@ SKILL_EOF
           read -r -a override <<< "''${AGENT_SKILLS_LOCAL_DESTS:-}"
         fi
 
-        # Check if path is safe to overwrite (doesn't exist, or is a symlink to Nix store)
+        # Check if path is safe to overwrite for the requested structure.
         is_safe_to_overwrite() {
           local path="$1"
+          local structure="$2"
           if [ ! -e "$path" ]; then
             return 0  # Doesn't exist, safe
           fi
@@ -427,7 +428,18 @@ SKILL_EOF
             if [[ "$target" == /nix/store/* ]]; then
               return 0  # Symlink to Nix store, safe
             fi
+            return 1
           fi
+
+          case "$structure" in
+            copy-tree)
+              # copy-tree is designed for mutable local directories.
+              if [ -d "$path" ]; then
+                return 0
+              fi
+              ;;
+          esac
+
           return 1  # Not safe
         }
 
@@ -441,7 +453,7 @@ SKILL_EOF
           fi
           full_dest="$root/$dest"
 
-          if ! is_safe_to_overwrite "$full_dest"; then
+          if ! is_safe_to_overwrite "$full_dest" "$structure"; then
             echo "agent-skills: $full_dest exists and is not a Nix-managed path" >&2
             echo "agent-skills: skipping to avoid overwriting user data" >&2
             echo "agent-skills: remove manually or set AGENT_SKILLS_FORCE=1 to overwrite" >&2
@@ -491,7 +503,7 @@ SKILL_EOF
               continue
             fi
             full_dest="$root/$dest"
-            if ! is_safe_to_overwrite "$full_dest"; then
+            if ! is_safe_to_overwrite "$full_dest" "copy-tree"; then
               echo "agent-skills: $full_dest exists and is not a Nix-managed path" >&2
               echo "agent-skills: skipping to avoid overwriting user data" >&2
               echo "agent-skills: remove manually or set AGENT_SKILLS_FORCE=1 to overwrite" >&2
