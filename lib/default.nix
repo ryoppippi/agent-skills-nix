@@ -32,8 +32,8 @@ let
   # Resolve the root path for a source, preferring an explicit path and
   # falling back to a flake input name.
   resolveSourceRoot = name: cfg:
-    if cfg ? path then cfg.path else
-    if cfg ? input then
+    if (cfg.path or null) != null then cfg.path else
+    if (cfg.input or null) != null then
       if inputs ? ${cfg.input} then inputs.${cfg.input}.outPath
       else throw "agent-skills: source ${name} refers to unknown input ${cfg.input}"
     else throw "agent-skills: source ${name} must set either `path` or `input`";

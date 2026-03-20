@@ -148,6 +148,14 @@
               lib = nixpkgs.lib;
             };
           };
+          home-manager-input-source = import ./test/home-manager-input-source.nix {
+            inherit pkgs;
+            hmLib = home-manager.lib;
+            agentSkillsModule = import ./modules/home-manager/agent-skills.nix {
+              inherit inputs;
+              lib = nixpkgs.lib;
+            };
+          };
         });
 
       homeManagerModules.default =
