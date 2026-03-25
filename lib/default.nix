@@ -176,6 +176,27 @@ let
         ) packages;
       in header + rows + "\n\n";
 
+  # Rewrite bare command names to ./command paths in content.
+  rewriteCommandPaths = content: packages:
+    let
+      allBinNames = lib.unique (concatMap (pkg:
+        let info = getPkgBinInfo pkg;
+        in if info.isDir then info.binaries else [ info.name ]
+      ) packages);
+    in
+    if allBinNames == [] then content
+    else
+      let
+        rewritten = builtins.replaceStrings
+          allBinNames
+          (map (name: "./${name}") allBinNames)
+          content;
+        fixed = builtins.replaceStrings
+          (map (name: "././${name}") allBinNames)
+          (map (name: "./${name}") allBinNames)
+          rewritten;
+      in fixed;
+
   # Build selection from allowlist + explicit skills.
   selectSkills = { catalog, allowlist ? [], skills ? {}, sources }:
     let
@@ -217,6 +238,7 @@ let
           source = srcName;
           meta = cfg.meta or {};
           transform = cfg.transform or null;
+          rewriteCommands = cfg.rewriteCommands or true;
           packages = cfg.packages or [];
         }
       ) explicit;
@@ -255,13 +277,19 @@ let
           originalContent = readFile (skillPath + "/SKILL.md");
           packagesTable = mkPackagesTable (skill.packages or []);
 
+          # Optionally rewrite bare command names to ./command paths
+          hasRewrite = (skill.rewriteCommands or true) && hasPackages;
+          rewrittenContent =
+            if hasRewrite then rewriteCommandPaths originalContent (skill.packages or [])
+            else originalContent;
+
           # Apply transform function or use default (original + dependencies at end)
           # This preserves frontmatter at the start of the file
           transformedContent =
             if hasTransform then
-              skill.transform { original = originalContent; dependencies = packagesTable; }
+              skill.transform { original = rewrittenContent; dependencies = packagesTable; }
             else
-              originalContent + "\n" + packagesTable;
+              rewrittenContent + "\n" + packagesTable;
         in
         if needsCustomisation then
           let
@@ -626,6 +654,7 @@ in
   targetsFor = targetsFor;
   mkBundle = mkBundle;
   mkPackagesTable = mkPackagesTable;
+  rewriteCommandPaths = rewriteCommandPaths;
   getPkgBinInfo = getPkgBinInfo;
   catalogJson = catalogJson;
   mkLocalInstallScript = mkLocalInstallScript;
